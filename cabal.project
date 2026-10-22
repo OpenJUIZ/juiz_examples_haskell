@@ -1,0 +1,6 @@
+-- hsjuiz は build.sh が取得する juiz のソース (build/juiz) のものを使う
+packages: . build/juiz/bindings/hsjuiz
+
+-- 依存は GHC に付いてくるパッケージ (base, text, containers, template-haskell など) だけなので、
+-- Hackage の索引は使わない (cabal update 不要)
+active-repositories: :none
