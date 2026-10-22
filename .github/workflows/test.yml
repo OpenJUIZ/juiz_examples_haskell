@@ -15,7 +15,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            ghc: "9.6"
+          # GHC 9.6 は macOS の新しい SDK の .tbd を読めずリンクに失敗するので、macOS は新しい GHC を使う
+          - os: macos-latest
+            ghc: "latest"
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -32,7 +37,7 @@ jobs:
       # 対応するのは GHC 9.6 以降
       - uses: haskell-actions/setup@v2
         with:
-          ghc-version: "9.6"
+          ghc-version: ${{ matrix.ghc }}
           cabal-version: latest
           # cabal.project が参照する hsjuiz は build.sh が取得するので、ここでは cabal update しない
           # (Hackage の索引も使わない)
