@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# サンプルをビルドし、juiz が読み込む共有ライブラリを build/plugins に置く。
+#
+# Haskell の機能要素は juiz の Haskell ライブラリ hsjuiz (bindings/hsjuiz) を使って書き、
+# juiz_sdk の共有ライブラリ (libjuiz_sdk.so / libjuiz_sdk.dylib) とリンクする。
+# どちらも crates.io の juiz_app に同梱されていないので、juiz のソースから用意する。
+#
+#   JUIZ_SOURCE_DIR を指定した場合: そのディレクトリの juiz のソースを使う
+#   指定しない場合: GitHub から JUIZ_GIT_REF の版を build/juiz に取得する
+#
+# 1. juiz のソースを build/juiz に用意する (hsjuiz を使うため。cabal.project が参照する)
+# 2. その中の juiz_sdk を cargo build --release -p juiz_sdk でビルドし、build/plugins に置く
+# 3. cabal build でサンプルをビルドし、できた共有ライブラリを build/plugins に置く
+#    (プラグインには自分と同じ場所から libjuiz_sdk を探す rpath が付く。juiz-examples-haskell.cabal を参照)
+set -euo pipefail
+
+JUIZ_GIT_REPOSITORY="${JUIZ_GIT_REPOSITORY:-https://github.com/OpenJUIZ/juiz.git}"
+# 使用する juiz の版 (タグかコミット)。juiz コマンドを入れた版と合わせる
+JUIZ_GIT_REF="${JUIZ_GIT_REF:-f6472b68385c86c185700ee3ac697202234f064d}"
+JUIZ_SOURCE_DIR="${JUIZ_SOURCE_DIR:-}"
+
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+build_dir="$root/build"
+juiz_dir="$build_dir/juiz"
+plugin_dir="$build_dir/plugins"
+
+case "$(uname -s)" in
+    Darwin) ext=dylib ;;
+    *) ext=so ;;
+esac
+
+mkdir -p "$build_dir" "$plugin_dir"
+
+# 1. juiz のソース
+if [[ -n "$JUIZ_SOURCE_DIR" ]]; then
+    JUIZ_SOURCE_DIR="$(cd "$JUIZ_SOURCE_DIR" && pwd)"
+    if [[ -L "$juiz_dir" || ! -e "$juiz_dir" ]]; then
+        ln -sfn "$JUIZ_SOURCE_DIR" "$juiz_dir"
+    else
+        echo "error: $juiz_dir がすでにあります。JUIZ_SOURCE_DIR を使うときは消してから実行してください。" >&2
+        exit 1
+    fi
+    echo "juiz のソース: $JUIZ_SOURCE_DIR"
+else
+    if [[ -L "$juiz_dir" ]]; then
+        rm "$juiz_dir"
+    fi
+    if [[ "$(cat "$build_dir/juiz.ref" 2>/dev/null)" != "$JUIZ_GIT_REF" ]]; then
+        echo "juiz $JUIZ_GIT_REF を $JUIZ_GIT_REPOSITORY から取得します"
+        rm -rf "$juiz_dir"
+        git init -q "$juiz_dir"
+        git -C "$juiz_dir" fetch -q --depth 1 "$JUIZ_GIT_REPOSITORY" "$JUIZ_GIT_REF"
+        git -C "$juiz_dir" checkout -q FETCH_HEAD
+        echo "$JUIZ_GIT_REF" > "$build_dir/juiz.ref"
+    fi
+fi
+
+if [[ ! -e "$juiz_dir/bindings/hsjuiz/hsjuiz.cabal" ]]; then
+    echo "error: juiz の Haskell ライブラリが見つかりません: $juiz_dir/bindings/hsjuiz" >&2
+    echo "       hsjuiz が入っている版の juiz を指定してください。" >&2
+    exit 1
+fi
+
+# 2. libjuiz_sdk
+cargo build --release -p juiz_sdk \
+    --manifest-path "$juiz_dir/Cargo.toml" \
+    --target-dir "$build_dir/juiz_sdk"
+cp "$build_dir/juiz_sdk/release/libjuiz_sdk.$ext" "$plugin_dir/"
+
+# 3. サンプル
+cd "$root"
+# Template Haskell を動かすときに GHC が hsjuiz と一緒に libjuiz_sdk を読み込むので、探す場所に加える
+export LD_LIBRARY_PATH="$plugin_dir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+export DYLD_LIBRARY_PATH="$plugin_dir${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
+cabal build all --builddir="$build_dir/dist-newstyle" --extra-lib-dirs="$plugin_dir"
+
+# juiz は設定ファイルに書いた名前 NAME から lib<NAME>.so (macOS では lib<NAME>.dylib) を探す
+for name in $(sed -n -E 's/^foreign-library[[:space:]]+//p' juiz-examples-haskell.cabal); do
+    lib=$(find "$build_dir/dist-newstyle" -name "lib$name.$ext" -type f | head -n 1)
+    if [[ -z "$lib" ]]; then
+        echo "error: lib$name.$ext が見つかりません" >&2
+        exit 1
+    fi
+    cp "$lib" "$plugin_dir/"
+done
+# hsjuiz の共有ライブラリも隣に置く (プラグインは $ORIGIN からも探す)
+find "$build_dir/dist-newstyle" -name "libHShsjuiz-*.$ext" -type f -exec cp {} "$plugin_dir/" \;
+echo "プラグインを $plugin_dir に置きました"
