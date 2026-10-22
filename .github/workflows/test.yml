@@ -15,12 +15,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: ubuntu-latest
-            ghc: "9.6"
-          # GHC 9.6 は macOS の新しい SDK の .tbd を読めずリンクに失敗するので、macOS は新しい GHC を使う
-          - os: macos-latest
-            ghc: "latest"
+        # macos-latest (SDK 27) では GHC (9.6 も 9.14 も) が hsjuiz をリンクできない
+        # (tapi error: unknown architecture arm64e.x1-macos) ので、macOS は 1 つ前の版で確かめる
+        os: [ubuntu-latest, macos-15]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -37,7 +34,7 @@ jobs:
       # 対応するのは GHC 9.6 以降
       - uses: haskell-actions/setup@v2
         with:
-          ghc-version: ${{ matrix.ghc }}
+          ghc-version: "9.6"
           cabal-version: latest
           # cabal.project が参照する hsjuiz は build.sh が取得するので、ここでは cabal update しない
           # (Hackage の索引も使わない)
