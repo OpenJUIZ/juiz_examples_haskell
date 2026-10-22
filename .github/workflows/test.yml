@@ -34,6 +34,9 @@ jobs:
         with:
           ghc-version: "9.6"
           cabal-version: latest
+          # cabal.project が参照する hsjuiz は build.sh が取得するので、ここでは cabal update しない
+          # (Hackage の索引も使わない)
+          cabal-update: false
       - name: juiz コマンドのキャッシュ
         id: juiz-cache
         uses: actions/cache@v4
