@@ -15,9 +15,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # macos-latest (SDK 27) では GHC (9.6 も 9.14 も) が hsjuiz をリンクできない
-        # (tapi error: unknown architecture arm64e.x1-macos) ので、macOS は 1 つ前の版で確かめる
-        os: [ubuntu-latest, macos-15]
+        # macos-latest は Xcode 26 に Command Line Tools 27 (MacOSX27.0.sdk) が入っていて、build.sh が
+        # DEVELOPER_DIR を切り替えてリンクする (OpenJUIZ/juiz#143)。切り替えが要らない macos-15 でも確かめる
+        os: [ubuntu-latest, macos-latest, macos-15]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4

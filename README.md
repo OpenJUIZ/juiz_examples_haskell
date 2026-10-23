@@ -48,6 +48,8 @@ cd juiz_examples_haskell
 ```
 
 初回は juiz の取得と juiz_sdk のビルドに少し時間がかかります。
+
+macOS で、選んでいる Xcode より新しい Command Line Tools (たとえば Xcode 26 に Command Line Tools 27 の MacOSX27.0.sdk) が入っていると、GHC のリンクが `tapi error: malformed file ... unknown architecture arm64e.x1-macos` で失敗します。`build.sh` はこの組み合わせを見つけると、`DEVELOPER_DIR=/Library/Developer/CommandLineTools` にして Command Line Tools のリンカでビルドします。自分で `cabal build` するときも同じように `DEVELOPER_DIR` を付けるか、Xcode を Command Line Tools と同じ版に上げてください ([OpenJUIZ/juiz#143](https://github.com/OpenJUIZ/juiz/issues/143))。
 ビルドしたプラグインは `build/plugins` に出力されます。設定ファイルは `./build/plugins` からプラグインを探すので、**リポジトリのルートで** `juiz` を実行してください。
 
 手元に juiz のソースがある場合は、それを使うこともできます (`build/juiz` がそこへのリンクになります)。
