@@ -7,8 +7,9 @@ on:
   workflow_dispatch:
 
 env:
-  # README の手順で使う juiz の版 (タグかコミット)。build.sh の JUIZ_GIT_REF と合わせる
-  JUIZ_GIT_REF: "f6472b68385c86c185700ee3ac697202234f064d"
+  # README の手順で使う juiz の版 (タグ)。build.sh の JUIZ_GIT_REF と合わせる。
+  # juiz コマンドは crates.io の同じ版 (先頭の v を除いたもの) を入れる
+  JUIZ_GIT_REF: "v0.0.21"
 
 jobs:
   examples:
@@ -47,7 +48,7 @@ jobs:
           key: juiz-app-${{ env.JUIZ_GIT_REF }}-${{ runner.os }}-${{ runner.arch }}
       - name: juiz コマンドをインストールする
         if: steps.juiz-cache.outputs.cache-hit != 'true'
-        run: cargo install juiz_app --git https://github.com/OpenJUIZ/juiz.git --rev "$JUIZ_GIT_REF" --locked
+        run: cargo install juiz_app --version "${JUIZ_GIT_REF#v}" --locked
       - name: libjuiz_sdk のビルド結果のキャッシュ
         uses: actions/cache@v4
         with:

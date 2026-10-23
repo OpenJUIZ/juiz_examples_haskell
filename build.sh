@@ -16,7 +16,7 @@ set -euo pipefail
 
 JUIZ_GIT_REPOSITORY="${JUIZ_GIT_REPOSITORY:-https://github.com/OpenJUIZ/juiz.git}"
 # 使用する juiz の版 (タグかコミット)。juiz コマンドを入れた版と合わせる
-JUIZ_GIT_REF="${JUIZ_GIT_REF:-f6472b68385c86c185700ee3ac697202234f064d}"
+JUIZ_GIT_REF="${JUIZ_GIT_REF:-v0.0.21}"
 JUIZ_SOURCE_DIR="${JUIZ_SOURCE_DIR:-}"
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

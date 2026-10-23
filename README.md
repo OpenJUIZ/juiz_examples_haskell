@@ -5,8 +5,7 @@ Haskell 用のライブラリ hsjuiz と `libjuiz_sdk` は、ビルド時に `bu
 
 Rust 版は [juiz_examples_rust](https://github.com/OpenJUIZ/juiz_examples_rust)、Python 版は [juiz_examples_python](https://github.com/OpenJUIZ/juiz_examples_python)、C++ 版は [juiz_examples_cpp](https://github.com/OpenJUIZ/juiz_examples_cpp) にあります。
 
-> **juiz の版について**: Haskell 対応 (`language: "haskell"` と hsjuiz) はまだ crates.io / PyPI に公開した juiz (0.0.20) に入っていません。
-> 公開されるまでは、juiz の GitHub のコミット `f6472b68385c86c185700ee3ac697202234f064d` を使います (下の手順のとおり)。
+`juiz` コマンドは crates.io の [juiz_app](https://crates.io/crates/juiz_app) 0.0.21 を使います (Haskell 対応は 0.0.21 から)。
 
 ## しくみ
 
@@ -32,7 +31,7 @@ hsjuiz は GHC に付いてくるパッケージ (base, text, containers, templa
 ## 1. juiz コマンドをインストールする
 
 ```sh
-cargo install juiz_app --git https://github.com/OpenJUIZ/juiz.git --rev f6472b68385c86c185700ee3ac697202234f064d --locked
+cargo install juiz_app --version 0.0.21 --locked
 ```
 
 `juiz` コマンドが `~/.cargo/bin` に入ります。
@@ -189,6 +188,57 @@ juiz container-process call "http://127.0.0.1:8000/container_process/get0::examp
 # => CapsulePtr((value:Value(105), option: []))
 ```
 
+### ネームスペース: 同じ構成を並べて動かす
+
+ネームスペースを使うと、同じ名前の Process を 1 つの System に並べて置けます。ID はクラスの後ろ・名前の前にネームスペースが入った `http://127.0.0.1:8000/process/robot1/talker0::talker_hs` の形になります。
+
+#### 1 つの設定ファイルで 2 台分を置く: namespace.conf
+
+`talker0` と `listener0` を `robot1` と `robot2` の 2 つのネームスペースに置き、Topic `chatter` でつなぎます。Topic 名もネームスペースの中で解決される (`robot1/chatter` と `robot2/chatter`) ので、それぞれの `listener0` には同じネームスペースの `talker0` の出力だけが届きます。
+
+```sh
+juiz -f namespace.conf -d
+# talker_hs: Hello from robot1
+# listener_hs: Hello from robot1
+# talker_hs: Hello from robot2
+# listener_hs: Hello from robot2
+# ...
+```
+
+別のターミナルから、ネームスペースの列つきで一覧を出したり、ネームスペース付きの ID で呼び出したりできます。
+
+```sh
+juiz process list --long
+# NAMESPACE  NAME       TYPE        ID
+# /robot1    talker0    talker_hs  http://127.0.0.1:8000/process/robot1/talker0::talker_hs
+# ...
+juiz process call "http://127.0.0.1:8000/process/robot1/talker0::talker_hs" '{"message": "Hi"}' -p
+# => CapsulePtr((value:Value("Hi"), option: []))
+```
+
+設定ファイルでは各要素に `namespace` を書きます (`/` で始めるとルートからの絶対指定)。トップレベルに `namespace` を書くと、全体の既定のネームスペースになります。
+
+#### 同じ設定ファイルを 2 つ起動する: --namespace
+
+`--namespace` を付けると、設定ファイルの既定のネームスペースを置き換えて起動できます。2 つのターミナルで次のように起動すると、2 つ目は 1 つ目のサブシステムになり (8001 番ポートで待ち受け)、1 つの System として扱えます。
+
+```sh
+juiz -f increment_process.conf --namespace robot1 -d
+```
+
+```sh
+juiz -f increment_process.conf --namespace robot2 -d
+```
+
+```sh
+juiz process list --namespace robot2
+# => ["http://127.0.0.1:8001/process/robot2/increment0::increment_process_hs"]
+juiz process call "http://127.0.0.1:8000/process/robot1/increment0::increment_process_hs" '{"arg1": 1}' -p
+# => CapsulePtr((value:Value(2), option: []))
+juiz process call "http://127.0.0.1:8001/process/robot2/increment0::increment_process_hs" '{"arg1": 10}' -p
+# => CapsulePtr((value:Value(11), option: []))
+```
+
 ## 構成
 
 | パス | 内容 |
@@ -224,7 +274,7 @@ hsjuiz の書き方の詳細は juiz の [bindings/hsjuiz/README.md](https://git
 
 ## juiz の版について
 
-`build.sh` が取得する juiz の版は `JUIZ_GIT_REF` で決まります。既定値は上の手順で `juiz` コマンドを入れたコミットです。
+`build.sh` が取得する juiz の版は `JUIZ_GIT_REF` で決まります。既定値は `v0.0.21` で、上の手順で入れた juiz_app 0.0.21 と組み合わせて使います。
 別の版を使うときは、`juiz` コマンドを入れた版と合わせて指定してください。
 
 ```sh
