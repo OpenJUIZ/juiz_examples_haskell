@@ -1,10 +1,25 @@
 name: test
 
+# このリポジトリは非公開なので、Actions の実行時間が無料枠から引かれる。
+# macOS のランナーは Linux の 10 倍で数えられるため、macOS のジョブは main への push と
+# 手動実行 (workflow_dispatch) のときだけ動かし、PR では Linux だけで確かめる。
+# PR で macOS も確かめたいときは、PR のブランチを指定して手動実行する。
 on:
   push:
     branches: [main]
+    paths-ignore: &docs
+      - "**.md"
+      - "LICENSE*"
   pull_request:
+    # draft の PR では動かさず、ready for review にしたときに動かす
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore: *docs
   workflow_dispatch:
+
+# 同じブランチに続けて push したら、前の実行を止める
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   # README の手順で使う juiz の版 (タグ)。build.sh の JUIZ_GIT_REF と合わせる。
@@ -13,12 +28,14 @@ env:
 
 jobs:
   examples:
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     strategy:
       fail-fast: false
       matrix:
         # macos-latest は Xcode 26 に Command Line Tools 27 (MacOSX27.0.sdk) が入っていて、build.sh が
-        # DEVELOPER_DIR を切り替えてリンクする (OpenJUIZ/juiz#143)。切り替えが要らない macos-15 でも確かめる
-        os: [ubuntu-latest, macos-latest, macos-15]
+        # DEVELOPER_DIR を切り替えてリンクする (OpenJUIZ/juiz#143)。切り替えが要らない macos-15 でも確かめる。
+        # PR では ubuntu-latest だけ (上の on: の説明を参照)
+        os: ${{ github.event_name == 'pull_request' && fromJSON('["ubuntu-latest"]') || fromJSON('["ubuntu-latest", "macos-latest", "macos-15"]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
