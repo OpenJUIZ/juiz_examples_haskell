@@ -258,8 +258,8 @@ record Twist2D { double linear = 0.0; double angular = 0.0; }
 > データ型は juiz の次の版 (0.0.23) で入ります。公開までは、`build.sh` の `JUIZ_GIT_REF` の既定値を juiz の main のコミットにしてあるので、juiz コマンドも同じコミットから入れてください。
 >
 > ```sh
-> cargo install juiz_app --git https://github.com/OpenJUIZ/juiz --rev 43a2210c7affaf62f93dc48ad1fd53d77f326df2 --locked
-> pip install "pyjuiz @ git+https://github.com/OpenJUIZ/juiz@43a2210c7affaf62f93dc48ad1fd53d77f326df2#subdirectory=bindings/pyjuiz"
+> cargo install juiz_app --git https://github.com/OpenJUIZ/juiz --rev 359438b023cd4ba982e7c1ef6a9ddaf3c15d76ab --locked
+> pip install "pyjuiz @ git+https://github.com/OpenJUIZ/juiz@359438b023cd4ba982e7c1ef6a9ddaf3c15d76ab#subdirectory=bindings/pyjuiz"
 > ```
 
 Haskell の Process [process/PoseMove.hs](process/PoseMove.hs) (`pose_move_hs`) は、types/geometry.jidl から作った型 (`Examples.Geometry`) をそのまま引数と戻り値に使います。型は `build.sh` が `juiz-idl -g haskell` で `build/gen-hs` に作ります (`juiz-idl` は juiz のソースからビルドします)。
@@ -383,7 +383,7 @@ hsjuiz の書き方の詳細は juiz の [bindings/hsjuiz/README.md](https://git
 
 ## juiz の版について
 
-`build.sh` が取得する juiz の版は `JUIZ_GIT_REF` で決まります。既定値は、データ型のサンプルのため juiz の main のコミット (`43a2210…`) にしてあり、同じコミットから入れた juiz コマンドと組み合わせて使います (juiz 0.0.23 の公開後はそのタグに戻します)。
+`build.sh` が取得する juiz の版は `JUIZ_GIT_REF` で決まります。既定値は、データ型のサンプルのため juiz の main のコミット (`359438b…`) にしてあり、同じコミットから入れた juiz コマンドと組み合わせて使います (juiz 0.0.23 の公開後はそのタグに戻します)。
 別の版を使うときは、`juiz` コマンドを入れた版と合わせて指定してください。
 
 ```sh
