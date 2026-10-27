@@ -7,9 +7,10 @@ on:
   workflow_dispatch:
 
 env:
-  # README の手順で使う juiz の版 (タグ)。build.sh の JUIZ_GIT_REF と合わせる。
-  # juiz コマンドは crates.io の同じ版 (先頭の v を除いたもの) を入れる
-  JUIZ_GIT_REF: "v0.0.21"
+  # 使う juiz の版 (タグかコミット)。build.sh の JUIZ_GIT_REF と合わせる。
+  # データ型のサンプルは juiz の次の版 (0.0.23) で入る機能を使うので、公開までは juiz の main のコミットを使う。
+  # 公開後はタグ (v0.0.23) に戻し、juiz コマンドも cargo install juiz_app --version で入れる
+  JUIZ_GIT_REF: "9e07ce30bafb29d71e9896eb90bbafb9fdbafa25"
 
 jobs:
   examples:
@@ -48,7 +49,10 @@ jobs:
           key: juiz-app-${{ env.JUIZ_GIT_REF }}-${{ runner.os }}-${{ runner.arch }}
       - name: juiz コマンドをインストールする
         if: steps.juiz-cache.outputs.cache-hit != 'true'
-        run: cargo install juiz_app --version "${JUIZ_GIT_REF#v}" --locked
+        run: cargo install juiz_app --git https://github.com/OpenJUIZ/juiz --rev "$JUIZ_GIT_REF" --locked
+      # データ型のサンプル (typed_pose.conf) の Python の Process が pyjuiz を使う
+      - name: pyjuiz をインストールする
+        run: python3 -m pip install --user --break-system-packages "pyjuiz @ git+https://github.com/OpenJUIZ/juiz@${JUIZ_GIT_REF}#subdirectory=bindings/pyjuiz"
       - name: libjuiz_sdk のビルド結果のキャッシュ
         uses: actions/cache@v4
         with:

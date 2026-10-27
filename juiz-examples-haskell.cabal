@@ -55,6 +55,15 @@ foreign-library listener_hs
     build-depends:    text
     other-modules:    Listener
 
+-- 型付きの Process。build/gen-hs の Examples.Geometry は build.sh が types/geometry.jidl から juiz-idl -g haskell で作る
+foreign-library pose_move_hs
+    import:           plugin
+    type:             native-shared
+    hs-source-dirs:   process build/gen-hs
+    build-depends:    bytestring, containers, text
+    other-modules:    PoseMove
+                      Examples.Geometry
+
 -- Container と ContainerProcess は別々のライブラリになる。状態の型 (ExampleContainerState) はどちらにも入れる
 foreign-library example_container_hs
     import:           plugin

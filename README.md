@@ -7,6 +7,8 @@ Rust 版は [juiz_examples_rust](https://github.com/OpenJUIZ/juiz_examples_rust)
 
 `juiz` コマンドは crates.io の [juiz_app](https://crates.io/crates/juiz_app) 0.0.21 を使います (Haskell 対応は 0.0.21 から)。
 
+> データ型のサンプル (types/geometry.jidl) は juiz の次の版 (0.0.23) で入る機能を使うので、公開までは `build.sh` の `JUIZ_GIT_REF` の既定値を juiz の main のコミットにしています。juiz コマンドの入れ方は「[データ型](#データ型-言語をまたいで同じ型を使う)」を見てください。
+
 ## しくみ
 
 Haskell で書いた Process や Container は、cabal の `foreign-library` で共有ライブラリ (`lib*.so`、macOS では `lib*.dylib`) としてビルドし、`juiz` コマンドが設定ファイル (`*.conf`) を読んでプラグインとして読み込みます。
@@ -16,7 +18,8 @@ Haskell のプラグインは juiz の Haskell ライブラリ hsjuiz (`bindings
 
 1. GitHub から juiz のソースを `build/juiz` に取得する (hsjuiz を使うため。[cabal.project](cabal.project) がそこを参照する)
 2. その中の juiz_sdk を `cargo build --release -p juiz_sdk` でビルドし、`libjuiz_sdk` を `build/plugins` に置く
-3. `cabal build` でサンプルをビルドし、できた共有ライブラリを `build/plugins` に置く (プラグインには自分と同じ場所からライブラリを探す rpath を付ける)
+3. 同じソースの juiz-idl で、サンプル共通の型 (types/geometry.jidl) から Haskell の型を `build/gen-hs` に作る
+4. `cabal build` でサンプルをビルドし、できた共有ライブラリを `build/plugins` に置く (プラグインには自分と同じ場所からライブラリを探す rpath を付ける)
 
 ## 必要なもの
 
@@ -239,6 +242,110 @@ juiz process call "http://127.0.0.1:8001/process/robot2/increment0::increment_pr
 # => CapsulePtr((value:Value(11), option: []))
 ```
 
+### データ型: 言語をまたいで同じ型を使う
+
+Process の引数と戻り値に型を付けられます。型は IDL (JIDL) で書き、生成器 `juiz-idl` で各言語の型を作ります。
+このリポジトリの [types/geometry.jidl](types/geometry.jidl) は、Haskell・[Rust](https://github.com/OpenJUIZ/juiz_examples_rust)・[Python](https://github.com/OpenJUIZ/juiz_examples_python)・[C++](https://github.com/OpenJUIZ/juiz_examples_cpp) の 4 つのサンプルリポジトリで同じ中身にしてあり、どの言語で作っても型の指紋 (`@sha256:…`) が同じになります。指紋が同じ型どうしは、言語が違ってもそのままつながります。
+
+```text
+namespace examples.geometry;
+
+record Point2D { double x = 0.0; double y = 0.0; }
+record Pose2D  { Point2D position = {"x": 0.0, "y": 0.0}; double theta = 0.0; string frame_id = "map"; }
+record Twist2D { double linear = 0.0; double angular = 0.0; }
+```
+
+> データ型は juiz の次の版 (0.0.23) で入ります。公開までは、`build.sh` の `JUIZ_GIT_REF` の既定値を juiz の main のコミットにしてあるので、juiz コマンドも同じコミットから入れてください。
+>
+> ```sh
+> cargo install juiz_app --git https://github.com/OpenJUIZ/juiz --rev 9e07ce30bafb29d71e9896eb90bbafb9fdbafa25 --locked
+> pip install "pyjuiz @ git+https://github.com/OpenJUIZ/juiz@9e07ce30bafb29d71e9896eb90bbafb9fdbafa25#subdirectory=bindings/pyjuiz"
+> ```
+
+Haskell の Process [process/PoseMove.hs](process/PoseMove.hs) (`pose_move_hs`) は、types/geometry.jidl から作った型 (`Examples.Geometry`) をそのまま引数と戻り値に使います。型は `build.sh` が `juiz-idl -g haskell` で `build/gen-hs` に作ります (`juiz-idl` は juiz のソースからビルドします)。
+
+```cabal
+foreign-library pose_move_hs
+    import:           plugin
+    type:             native-shared
+    hs-source-dirs:   process build/gen-hs
+    build-depends:    bytestring, containers, text
+    other-modules:    PoseMove
+                      Examples.Geometry
+```
+
+```haskell
+import Juiz
+import Examples.Geometry
+
+manifest :: ProcessManifest
+manifest = processManifest "pose_move_hs"
+  & addTypedArg "pose" "current pose" defaultPose2D
+  & addTypedArg "twist" "velocity" defaultTwist2D
+  & addFloatArg "dt" "duration [s]" 1
+
+poseMove :: Pose2D -> Twist2D -> Double -> IO Pose2D
+poseMove pose twist dt = …
+
+juizProcess 'poseMove 'manifest
+```
+
+#### Haskell と Python をつなぐ: typed_pose.conf
+
+Python の Process ([python/](python/)) が出した `Twist2D` を Haskell の `pose_move_hs` が受け取り、`pose_move_hs` が出した `Pose2D` を Python の Process が受け取ります。Python の Process には pyjuiz が要ります。
+
+```text
+twist0 (Python, Twist2D) --Pull--> move0 (Haskell, pose_move_hs) --Push--> print0 (Python, Pose2D を表示)
+```
+
+先に Python の型を `gen/` に作ってから起動します (設定ファイルの `option.pythonpath` で `gen/` を読みます)。
+
+```sh
+juiz idl -g python -o gen types/geometry.jidl
+juiz -f typed_pose.conf -d
+```
+
+別のターミナルから `move0` を実行 (execute) すると、`twist0` から速度を取ってきて動き、結果を `print0` に送ります。
+
+```sh
+curl -X PATCH "http://127.0.0.1:8000/api/process/execute?identifier=core://core/process/move0::pose_move_hs" -H "Content-Type: application/json" -d '{}'
+# => {"frame_id":"map","position":{"x":0.5,"y":0.0},"theta":0.0}
+```
+
+```text
+pose_move_hs: (0.00, 0.00, 0.00) -> (0.50, 0.00, 0.00)
+pose_print_python receives Pose2D(x=0.50, y=0.00, theta=0.00, frame_id=map)
+```
+
+型付きの引数も、CLI や curl からは今までどおり辞書で渡せます。書かなかったフィールドは既定値になります。
+
+```sh
+juiz process call "http://127.0.0.1:8000/process/move0::pose_move_hs" '{"pose": {"position": {"x": 1.0, "y": 2.0}}, "twist": {"linear": 1.0}, "dt": 2.0}' -p
+# => CapsulePtr((value:Value({"frame_id":"map","position":{"x":3.0,"y":2.0},"theta":0.0}), option: []))
+```
+
+読み込んだ型は `juiz type` で見られます。Haskell と Python の型の指紋が同じなので、1 つの型として登録されています。
+
+```sh
+juiz type list
+# => ["examples.geometry.Point2D@sha256:5649ab39…","examples.geometry.Pose2D@sha256:123b8c15…","examples.geometry.Twist2D@sha256:115b9e0f…"]
+juiz type show examples.geometry.Twist2D
+# // examples.geometry.Twist2D@sha256:115b9e0f…
+# // used by: pose_move_hs, twist_python
+# ...
+```
+
+#### 型が合わないとつながらない: typed_mismatch.conf
+
+`twist0` の `Twist2D` を `move0` の引数 `pose` (`Pose2D`) につなごうとする設定ファイルです。juiz は接続を作らず、エラーで終わります。
+
+```sh
+juiz -f typed_mismatch.conf -d
+# Error:setup_objects() failed in setup in system.rs
+# ...
+#     2: Type examples.geometry.Twist2D@sha256:115b9e0f… cannot be read as examples.geometry.Pose2D@sha256:123b8c15… at 'Pose2D': record name examples.geometry.Twist2D does not match examples.geometry.Pose2D (add an alias to read it)
+```
+
 ## 構成
 
 | パス | 内容 |
@@ -246,8 +353,10 @@ juiz process call "http://127.0.0.1:8001/process/robot2/increment0::increment_pr
 | `process/` | Process (入力と出力を持つ冪等な関数) のサンプル |
 | `container/` | Container (状態を持つ) と ContainerProcess のサンプル |
 | `component/` | 複数の要素を 1 つのライブラリにまとめた Component のサンプル |
+| `types/` | 4 つのサンプルリポジトリで共通に使う型 (JIDL) |
+| `python/` | データ型のサンプルで Haskell の Process とつなぐ Python の Process |
 | `juiz-examples-haskell.cabal` | 各サンプルを `foreign-library` として宣言する |
-| `build.sh` | juiz のソースと libjuiz_sdk を用意し、サンプルをビルドして `build/plugins` に置く |
+| `build.sh` | juiz のソースと libjuiz_sdk・juiz-idl を用意し、型を作ってサンプルをビルドし、`build/plugins` に置く |
 | `*.conf` | 各サンプルを動かすための juiz の設定ファイル |
 | `tests/test_examples.py` | 上のサンプルを起動して呼び出し、結果を確かめるテスト (ビルドのあと `python3 tests/test_examples.py`)。CI でも実行する |
 
@@ -274,7 +383,7 @@ hsjuiz の書き方の詳細は juiz の [bindings/hsjuiz/README.md](https://git
 
 ## juiz の版について
 
-`build.sh` が取得する juiz の版は `JUIZ_GIT_REF` で決まります。既定値は `v0.0.21` で、上の手順で入れた juiz_app 0.0.21 と組み合わせて使います。
+`build.sh` が取得する juiz の版は `JUIZ_GIT_REF` で決まります。既定値は、データ型のサンプルのため juiz の main のコミット (`9e07ce3…`) にしてあり、同じコミットから入れた juiz コマンドと組み合わせて使います (juiz 0.0.23 の公開後はそのタグに戻します)。
 別の版を使うときは、`juiz` コマンドを入れた版と合わせて指定してください。
 
 ```sh
