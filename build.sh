@@ -10,13 +10,14 @@
 #
 # 1. juiz のソースを build/juiz に用意する (hsjuiz を使うため。cabal.project が参照する)
 # 2. その中の juiz_sdk を cargo build --release -p juiz_sdk でビルドし、build/plugins に置く
-# 3. cabal build でサンプルをビルドし、できた共有ライブラリを build/plugins に置く
+# 3. juiz-idl を同じソースからビルドし、サンプル共通の型 (types/geometry.jidl) から Haskell の型を build/gen-hs に作る
+# 4. cabal build でサンプルをビルドし、できた共有ライブラリを build/plugins に置く
 #    (プラグインには自分と同じ場所から libjuiz_sdk を探す rpath が付く。juiz-examples-haskell.cabal を参照)
 set -euo pipefail
 
 JUIZ_GIT_REPOSITORY="${JUIZ_GIT_REPOSITORY:-https://github.com/OpenJUIZ/juiz.git}"
 # 使用する juiz の版 (タグかコミット)。juiz コマンドを入れた版と合わせる
-JUIZ_GIT_REF="${JUIZ_GIT_REF:-v0.0.21}"
+JUIZ_GIT_REF="${JUIZ_GIT_REF:-v0.0.23}"
 JUIZ_SOURCE_DIR="${JUIZ_SOURCE_DIR:-}"
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -67,7 +68,14 @@ cargo build --release -p juiz_sdk \
     --target-dir "$build_dir/juiz_sdk"
 cp "$build_dir/juiz_sdk/release/libjuiz_sdk.$ext" "$plugin_dir/"
 
-# 3. サンプル
+# 3. 型。Python の型を置く gen/ (examples/geometry) とは分ける
+# (macOS の大文字小文字を区別しないファイルシステムでは Examples/ と examples/ が同じディレクトリになるため)
+cargo build --release -p juiz_idl \
+    --manifest-path "$juiz_dir/Cargo.toml" \
+    --target-dir "$build_dir/juiz_sdk"
+"$build_dir/juiz_sdk/release/juiz-idl" -g haskell -o "$build_dir/gen-hs" "$root/types/geometry.jidl" > /dev/null
+
+# 4. サンプル
 cd "$root"
 # macOS では、GHC がリンクのときに Command Line Tools の SDK (/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk)
 # を -L で渡す。選ばれている Xcode より Command Line Tools の SDK の版が新しいと、Xcode のリンカがその SDK の
