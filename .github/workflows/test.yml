@@ -24,7 +24,7 @@ concurrency:
 env:
   # README の手順で使う juiz の版 (タグ)。build.sh の JUIZ_GIT_REF と合わせる。
   # juiz コマンドと pyjuiz は同じ版 (先頭の v を除いたもの) を入れる
-  JUIZ_GIT_REF: "v0.0.23"
+  JUIZ_GIT_REF: "v0.0.24"
 
 jobs:
   examples:
