@@ -16,9 +16,8 @@
 set -euo pipefail
 
 JUIZ_GIT_REPOSITORY="${JUIZ_GIT_REPOSITORY:-https://github.com/OpenJUIZ/juiz.git}"
-# 使用する juiz の版 (タグかコミット)。juiz コマンドを入れた版と合わせる。
-# データ型のサンプルは juiz の次の版 (0.0.23) で入る機能を使うので、公開までは juiz の main のコミットを使う
-JUIZ_GIT_REF="${JUIZ_GIT_REF:-359438b023cd4ba982e7c1ef6a9ddaf3c15d76ab}"
+# 使用する juiz の版 (タグかコミット)。juiz コマンドを入れた版と合わせる
+JUIZ_GIT_REF="${JUIZ_GIT_REF:-v0.0.23}"
 JUIZ_SOURCE_DIR="${JUIZ_SOURCE_DIR:-}"
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

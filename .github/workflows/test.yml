@@ -7,10 +7,9 @@ on:
   workflow_dispatch:
 
 env:
-  # 使う juiz の版 (タグかコミット)。build.sh の JUIZ_GIT_REF と合わせる。
-  # データ型のサンプルは juiz の次の版 (0.0.23) で入る機能を使うので、公開までは juiz の main のコミットを使う。
-  # 公開後はタグ (v0.0.23) に戻し、juiz コマンドも cargo install juiz_app --version で入れる
-  JUIZ_GIT_REF: "359438b023cd4ba982e7c1ef6a9ddaf3c15d76ab"
+  # README の手順で使う juiz の版 (タグ)。build.sh の JUIZ_GIT_REF と合わせる。
+  # juiz コマンドと pyjuiz は同じ版 (先頭の v を除いたもの) を入れる
+  JUIZ_GIT_REF: "v0.0.23"
 
 jobs:
   examples:
@@ -49,10 +48,10 @@ jobs:
           key: juiz-app-${{ env.JUIZ_GIT_REF }}-${{ runner.os }}-${{ runner.arch }}
       - name: juiz コマンドをインストールする
         if: steps.juiz-cache.outputs.cache-hit != 'true'
-        run: cargo install juiz_app --git https://github.com/OpenJUIZ/juiz --rev "$JUIZ_GIT_REF" --locked
+        run: cargo install juiz_app --version "${JUIZ_GIT_REF#v}" --locked
       # データ型のサンプル (typed_pose.conf) の Python の Process が pyjuiz を使う
       - name: pyjuiz をインストールする
-        run: python3 -m pip install --user --break-system-packages "pyjuiz @ git+https://github.com/OpenJUIZ/juiz@${JUIZ_GIT_REF}#subdirectory=bindings/pyjuiz"
+        run: python3 -m pip install --user --break-system-packages "pyjuiz==${JUIZ_GIT_REF#v}"
       - name: libjuiz_sdk のビルド結果のキャッシュ
         uses: actions/cache@v4
         with:
