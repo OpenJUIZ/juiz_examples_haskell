@@ -1,9 +1,5 @@
 name: test
 
-# このリポジトリは非公開なので、Actions の実行時間が無料枠から引かれる。
-# macOS のランナーは Linux の 10 倍で数えられるため、macOS のジョブは main への push と
-# 手動実行 (workflow_dispatch) のときだけ動かし、PR では Linux だけで確かめる。
-# PR で macOS も確かめたいときは、PR のブランチを指定して手動実行する。
 on:
   push:
     branches: [main]
@@ -33,9 +29,8 @@ jobs:
       fail-fast: false
       matrix:
         # macos-latest は Xcode 26 に Command Line Tools 27 (MacOSX27.0.sdk) が入っていて、build.sh が
-        # DEVELOPER_DIR を切り替えてリンクする (OpenJUIZ/juiz#143)。切り替えが要らない macos-15 でも確かめる。
-        # PR では ubuntu-latest だけ (上の on: の説明を参照)
-        os: ${{ github.event_name == 'pull_request' && fromJSON('["ubuntu-latest"]') || fromJSON('["ubuntu-latest", "macos-latest", "macos-15"]') }}
+        # DEVELOPER_DIR を切り替えてリンクする (OpenJUIZ/juiz#143)。切り替えが要らない macos-15 でも確かめる
+        os: [ubuntu-latest, macos-latest, macos-15]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
