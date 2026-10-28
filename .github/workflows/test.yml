@@ -25,6 +25,9 @@ env:
   # README の手順で使う juiz の版 (タグ)。build.sh の JUIZ_GIT_REF と合わせる。
   # juiz コマンドと pyjuiz は同じ版 (先頭の v を除いたもの) を入れる
   JUIZ_GIT_REF: "v0.0.25"
+  # GHC と cabal の版。入れた GHC をキャッシュするので、キャッシュのキーが変わらないよう細かく固定する
+  GHC_VERSION: "9.6.7"
+  CABAL_VERSION: "3.18.1.0"
 
 jobs:
   examples:
@@ -49,14 +52,34 @@ jobs:
         with:
           python-version: "3.13"
       - uses: dtolnay/rust-toolchain@stable
-      # 対応するのは GHC 9.6 以降
+      # 対応するのは GHC 9.6 以降で、その最小の系列で確かめる。
+      # ghcup での GHC のインストールに Linux で約 2 分、macOS で約 4 分かかるので、入れた GHC をキャッシュする。
+      # GHC の置き場所は ghcup と同じく ${GHCUP_INSTALL_BASE_PREFIX:-$HOME}/.ghcup/ghc/<版>
+      - name: ghcup の置き場所を調べる
+        id: ghcup
+        shell: bash
+        run: echo "dir=${GHCUP_INSTALL_BASE_PREFIX:-$HOME}/.ghcup" >> "$GITHUB_OUTPUT"
+      - name: GHC のキャッシュを戻す
+        id: ghc-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ steps.ghcup.outputs.dir }}/ghc/${{ env.GHC_VERSION }}
+          key: ghc-${{ env.GHC_VERSION }}-${{ runner.os }}-${{ runner.arch }}
+      # キャッシュに GHC があれば、haskell-actions/setup はインストールを飛ばして ghcup set だけする
       - uses: haskell-actions/setup@v2
         with:
-          ghc-version: "9.6"
-          cabal-version: latest
+          ghc-version: ${{ env.GHC_VERSION }}
+          cabal-version: ${{ env.CABAL_VERSION }}
           # cabal.project が参照する hsjuiz は build.sh が取得するので、ここでは cabal update しない
           # (Hackage の索引も使わない)
           cabal-update: false
+      # サンプルのビルドが失敗しても次から使えるよう、インストールした直後に保存する
+      - name: GHC をキャッシュに保存する
+        if: steps.ghc-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ steps.ghcup.outputs.dir }}/ghc/${{ env.GHC_VERSION }}
+          key: ${{ steps.ghc-cache.outputs.cache-primary-key }}
       - name: juiz コマンドのキャッシュ
         id: juiz-cache
         uses: actions/cache@v4
