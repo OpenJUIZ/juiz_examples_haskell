@@ -1,13 +1,13 @@
 # juiz_examples_haskell
 
 ロボット・IoT 向けミドルウェア [juiz](https://github.com/OpenJUIZ/juiz) の Haskell 版サンプル集です。
-Haskell 用のライブラリ hsjuiz と `libjuiz_sdk` は、いまはどちらも juiz のソースから入れます。ビルド時に `build.sh` が juiz のリポジトリ (タグ) から自動で取得してビルドするので、juiz のソースを手元に用意する必要はありません。
+`libjuiz_sdk` は juiz の [GitHub Releases](https://github.com/OpenJUIZ/juiz/releases) のアーカイブ (0.0.26 から) を使い、Haskell 用のライブラリ hsjuiz は juiz のソースから入れます。どちらもビルド時に `build.sh` が自動で取得するので、juiz のソースを手元に用意する必要はありません。
 
-> hsjuiz の Hackage 公開と、`libjuiz_sdk` の GitHub Releases での配布は準備中です。公開したら、ソースを取得せずにそちらを使う手順に変える予定です。
+> hsjuiz の Hackage 公開は準備中です。公開したら、juiz のソースを取得せずにそちらを使う手順に変える予定です。
 
 Rust 版は [juiz_examples_rust](https://github.com/OpenJUIZ/juiz_examples_rust)、Python 版は [juiz_examples_python](https://github.com/OpenJUIZ/juiz_examples_python)、C++ 版は [juiz_examples_cpp](https://github.com/OpenJUIZ/juiz_examples_cpp) にあります。
 
-`juiz` コマンドは crates.io の [juiz_app](https://crates.io/crates/juiz_app) 0.0.25 を使います (Haskell 対応は 0.0.21 から、データ型は 0.0.23 から)。
+`juiz` コマンドは crates.io の [juiz_app](https://crates.io/crates/juiz_app) 0.0.26 を使います (Haskell 対応は 0.0.21 から、データ型は 0.0.23 から)。
 
 ## しくみ
 
@@ -17,7 +17,7 @@ Haskell のプラグインは juiz の Haskell ライブラリ hsjuiz (`bindings
 どちらも `cargo install juiz_app` では入らないので、このリポジトリの [build.sh](build.sh) が次のことを行います。
 
 1. GitHub から juiz のソースを `build/juiz` に取得する (hsjuiz を使うため。[cabal.project](cabal.project) がそこを参照する)
-2. その中の juiz_sdk を `cargo build --release -p juiz_sdk` でビルドし、`libjuiz_sdk` を `build/plugins` に置く
+2. 同じ版の `libjuiz_sdk` のアーカイブを juiz の `scripts/install-juiz-sdk.sh` で `build/juiz_sdk_archive` に取得し、`build/plugins` に置く (アーカイブのない環境では、ソースの juiz_sdk を `cargo build --release -p juiz_sdk` でビルドする)
 3. 同じソースの juiz-idl で、サンプル共通の型 (types/geometry.jidl) から Haskell の型を `build/gen-hs` に作る
 4. `cabal build` でサンプルをビルドし、できた共有ライブラリを `build/plugins` に置く (プラグインには自分と同じ場所からライブラリを探す rpath を付ける)
 
@@ -25,8 +25,8 @@ Haskell のプラグインは juiz の Haskell ライブラリ hsjuiz (`bindings
 
 - Linux または macOS
 - GHC 9.6 以降と cabal。インストールは https://www.haskell.org/ghcup/ を参照してください。
-- Rust (stable)。`juiz` コマンドと `libjuiz_sdk` のビルドに使います。インストールは https://rustup.rs/ を参照してください。
-- git
+- Rust (stable)。`juiz` コマンドと juiz-idl のビルドに使います。インストールは https://rustup.rs/ を参照してください。
+- git、curl
 - Linux では Python の開発用ファイル (`juiz` コマンドのビルドに使います。Ubuntu なら `sudo apt install python3-dev`)
 
 hsjuiz は GHC に付いてくるパッケージ (base, text, containers, template-haskell など) だけを使うので、`cabal update` は要りません。
@@ -34,12 +34,10 @@ hsjuiz は GHC に付いてくるパッケージ (base, text, containers, templa
 ## 1. juiz コマンドをインストールする
 
 ```sh
-cargo install juiz_app --version 0.0.25 --locked
+cargo install juiz_app --version 0.0.26 --locked
 ```
 
 `juiz` コマンドが `~/.cargo/bin` に入ります。
-
-macOS で Python 3.14 が入っている場合は、juiz が使う PyO3 が対応していないためビルドに失敗します。Python 3.13 を入れて `PYO3_PYTHON=python3.13` を付けて実行してください。
 
 ## 2. サンプルをビルドする
 
@@ -49,7 +47,7 @@ cd juiz_examples_haskell
 ./build.sh
 ```
 
-初回は juiz の取得と juiz_sdk のビルドに少し時間がかかります。
+初回は juiz の取得と juiz-idl のビルドに少し時間がかかります。
 
 macOS で、選んでいる Xcode より新しい Command Line Tools (たとえば Xcode 26 に Command Line Tools 27 の MacOSX27.0.sdk) が入っていると、GHC のリンクが `tapi error: malformed file ... unknown architecture arm64e.x1-macos` で失敗します。`build.sh` はこの組み合わせを見つけると、`DEVELOPER_DIR=/Library/Developer/CommandLineTools` にして Command Line Tools のリンカでビルドします。自分で `cabal build` するときも同じように `DEVELOPER_DIR` を付けるか、Xcode を Command Line Tools と同じ版に上げてください ([OpenJUIZ/juiz#143](https://github.com/OpenJUIZ/juiz/issues/143))。
 ビルドしたプラグインは `build/plugins` に出力されます。設定ファイルは `./build/plugins` からプラグインを探すので、**リポジトリのルートで** `juiz` を実行してください。
@@ -258,8 +256,8 @@ record Twist2D { double linear = 0.0; double angular = 0.0; }
 > データ型は juiz 0.0.23 から使えます。juiz コマンドと、Python の Process が使う pyjuiz は 0.0.23 以降を入れてください。
 >
 > ```sh
-> cargo install juiz_app --version 0.0.25 --locked
-> pip install pyjuiz==0.0.25
+> cargo install juiz_app --version 0.0.26 --locked
+> pip install pyjuiz==0.0.26
 > ```
 
 Haskell の Process [process/PoseMove.hs](process/PoseMove.hs) (`pose_move_hs`) は、types/geometry.jidl から作った型 (`Examples.Geometry`) をそのまま引数と戻り値に使います。型は `build.sh` が `juiz-idl -g haskell` で `build/gen-hs` に作ります (`juiz-idl` は juiz のソースからビルドします)。
@@ -387,31 +385,31 @@ hsjuiz の書き方の詳細は juiz の [bindings/hsjuiz/README.md](https://git
 
 いちばん手早いのは、このリポジトリの [build.sh](build.sh)・[cabal.project](cabal.project)・[juiz-examples-haskell.cabal](juiz-examples-haskell.cabal) (`common plugin` の部分) をひな形にすることです。
 
-自分で用意するときは、juiz のソースを `juiz` コマンドと同じ版のタグで取得して `libjuiz_sdk` をビルドし、`cabal.project` で hsjuiz をそのソースから使います。
+自分で用意するときは、`juiz` コマンドと同じ版の `libjuiz_sdk` のアーカイブを取得し、juiz のソースを同じ版のタグで取得して、`cabal.project` で hsjuiz をそのソースから使います。
 
 ```sh
-git clone --depth 1 --branch v0.0.25 https://github.com/OpenJUIZ/juiz.git ~/juiz-0.0.25
-cargo build --release -p juiz_sdk --manifest-path ~/juiz-0.0.25/Cargo.toml
-# => ~/juiz-0.0.25/target/release/libjuiz_sdk.so (macOS は .dylib)
+curl -fsSL https://raw.githubusercontent.com/OpenJUIZ/juiz/main/scripts/install-juiz-sdk.sh | sh -s -- 0.0.26
+# => ~/.juiz/sdk/0.0.26/lib/libjuiz_sdk.so (macOS は .dylib)
+git clone --depth 1 --branch v0.0.26 https://github.com/OpenJUIZ/juiz.git ~/juiz-0.0.26
 ```
 
 ```cabal
 -- cabal.project
-packages: . /home/me/juiz-0.0.25/bindings/hsjuiz
+packages: . /home/me/juiz-0.0.26/bindings/hsjuiz
 
 -- hsjuiz は libjuiz_sdk にリンクする。rpath は、Template Haskell を動かすときに GHC が
 -- hsjuiz と一緒に libjuiz_sdk を読み込むために要る
 package hsjuiz
-  extra-lib-dirs: /home/me/juiz-0.0.25/target/release
-  ghc-options: -optl-Wl,-rpath,/home/me/juiz-0.0.25/target/release
+  extra-lib-dirs: /home/me/.juiz/sdk/0.0.26/lib
+  ghc-options: -optl-Wl,-rpath,/home/me/.juiz/sdk/0.0.26/lib
 ```
 
 自分のパッケージの `.cabal` では、`foreign-library` に `type: native-shared`、`build-depends: base, hsjuiz`、`ghc-options: -threaded` を書きます。
-juiz の版を上げるときは、`juiz` コマンドと juiz のソース (タグ) の版をそろえてください。
+juiz の版を上げるときは、`juiz` コマンド・`libjuiz_sdk`・juiz のソース (タグ) の版をそろえてください。
 
 ## juiz の版について
 
-`build.sh` が取得する juiz の版は `JUIZ_GIT_REF` で決まります。既定値は `v0.0.25` で、上の手順で入れた juiz_app 0.0.25 と組み合わせて使います。
+`build.sh` が取得する juiz の版は `JUIZ_GIT_REF` で決まります。既定値は `v0.0.26` で、上の手順で入れた juiz_app 0.0.26 と組み合わせて使います。タグ (`v<版>`) を指定すると、その版の `libjuiz_sdk` のアーカイブを使います。コミットを指定したときや `JUIZ_SOURCE_DIR`・`JUIZ_SDK_FROM_SOURCE=1` を指定したときは、ソースから `libjuiz_sdk` をビルドします。
 別の版を使うときは、`juiz` コマンドを入れた版と合わせて指定してください。
 
 ```sh

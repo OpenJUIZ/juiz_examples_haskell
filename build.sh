@@ -3,15 +3,18 @@
 #
 # Haskell の機能要素は juiz の Haskell ライブラリ hsjuiz (bindings/hsjuiz) を使って書き、
 # juiz_sdk の共有ライブラリ (libjuiz_sdk.so / libjuiz_sdk.dylib) とリンクする。
-# どちらも crates.io の juiz_app に同梱されていないので、juiz のソースから用意する。
-# (hsjuiz は Hackage、libjuiz_sdk は GitHub Releases のアーカイブで配る準備をしているが、まだ公開していない。
-#  公開したら、ソースを取得せずにそちらを使う形に変える予定)
+# どちらも crates.io の juiz_app に同梱されていない。
+# libjuiz_sdk は GitHub Releases のアーカイブ (0.0.26 から) を取得し、hsjuiz は juiz のソースから使う
+# (hsjuiz は Hackage での公開を準備中。公開したら、ソースを取得せずにそちらを使う形に変える予定)。
 #
 #   JUIZ_SOURCE_DIR を指定した場合: そのディレクトリの juiz のソースを使う
 #   指定しない場合: GitHub から JUIZ_GIT_REF の版を build/juiz に取得する
 #
 # 1. juiz のソースを build/juiz に用意する (hsjuiz を使うため。cabal.project が参照する)
-# 2. その中の juiz_sdk を cargo build --release -p juiz_sdk でビルドし、build/plugins に置く
+# 2. libjuiz_sdk を build/plugins に置く。JUIZ_GIT_REF がタグ (v<版>) なら、その版のアーカイブを
+#    juiz の scripts/install-juiz-sdk.sh で build/juiz_sdk_archive に取得する。
+#    JUIZ_SOURCE_DIR を指定した場合、タグでない場合、JUIZ_SDK_FROM_SOURCE=1 の場合、
+#    アーカイブのない環境では、ソースの juiz_sdk を cargo build --release -p juiz_sdk でビルドする
 # 3. juiz-idl を同じソースからビルドし、サンプル共通の型 (types/geometry.jidl) から Haskell の型を build/gen-hs に作る
 # 4. cabal build でサンプルをビルドし、できた共有ライブラリを build/plugins に置く
 #    (プラグインには自分と同じ場所から libjuiz_sdk を探す rpath が付く。juiz-examples-haskell.cabal を参照)
@@ -19,8 +22,9 @@ set -euo pipefail
 
 JUIZ_GIT_REPOSITORY="${JUIZ_GIT_REPOSITORY:-https://github.com/OpenJUIZ/juiz.git}"
 # 使用する juiz の版 (タグかコミット)。juiz コマンドを入れた版と合わせる
-JUIZ_GIT_REF="${JUIZ_GIT_REF:-v0.0.25}"
+JUIZ_GIT_REF="${JUIZ_GIT_REF:-v0.0.26}"
 JUIZ_SOURCE_DIR="${JUIZ_SOURCE_DIR:-}"
+JUIZ_SDK_FROM_SOURCE="${JUIZ_SDK_FROM_SOURCE:-}"
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 build_dir="$root/build"
@@ -65,10 +69,23 @@ if [[ ! -e "$juiz_dir/bindings/hsjuiz/hsjuiz.cabal" ]]; then
 fi
 
 # 2. libjuiz_sdk
-cargo build --release -p juiz_sdk \
-    --manifest-path "$juiz_dir/Cargo.toml" \
-    --target-dir "$build_dir/juiz_sdk"
-cp "$build_dir/juiz_sdk/release/libjuiz_sdk.$ext" "$plugin_dir/"
+sdk_lib=""
+if [[ -z "$JUIZ_SOURCE_DIR" && -z "$JUIZ_SDK_FROM_SOURCE" && "$JUIZ_GIT_REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    sdk_archive_dir="$build_dir/juiz_sdk_archive/${JUIZ_GIT_REF#v}"
+    if [[ -e "$sdk_archive_dir/lib/libjuiz_sdk.$ext" ]] \
+        || sh "$juiz_dir/scripts/install-juiz-sdk.sh" "$JUIZ_GIT_REF" "$sdk_archive_dir"; then
+        sdk_lib="$sdk_archive_dir/lib/libjuiz_sdk.$ext"
+    else
+        echo "libjuiz_sdk のアーカイブを取得できなかったので、ソースからビルドします"
+    fi
+fi
+if [[ -z "$sdk_lib" ]]; then
+    cargo build --release -p juiz_sdk \
+        --manifest-path "$juiz_dir/Cargo.toml" \
+        --target-dir "$build_dir/juiz_sdk"
+    sdk_lib="$build_dir/juiz_sdk/release/libjuiz_sdk.$ext"
+fi
+cp "$sdk_lib" "$plugin_dir/"
 
 # 3. 型。Python の型を置く gen/ (examples/geometry) とは分ける
 # (macOS の大文字小文字を区別しないファイルシステムでは Examples/ と examples/ が同じディレクトリになるため)
