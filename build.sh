@@ -4,6 +4,8 @@
 # Haskell の機能要素は juiz の Haskell ライブラリ hsjuiz (bindings/hsjuiz) を使って書き、
 # juiz_sdk の共有ライブラリ (libjuiz_sdk.so / libjuiz_sdk.dylib) とリンクする。
 # どちらも crates.io の juiz_app に同梱されていないので、juiz のソースから用意する。
+# (hsjuiz は Hackage、libjuiz_sdk は GitHub Releases のアーカイブで配る準備をしているが、まだ公開していない。
+#  公開したら、ソースを取得せずにそちらを使う形に変える予定)
 #
 #   JUIZ_SOURCE_DIR を指定した場合: そのディレクトリの juiz のソースを使う
 #   指定しない場合: GitHub から JUIZ_GIT_REF の版を build/juiz に取得する
@@ -17,7 +19,7 @@ set -euo pipefail
 
 JUIZ_GIT_REPOSITORY="${JUIZ_GIT_REPOSITORY:-https://github.com/OpenJUIZ/juiz.git}"
 # 使用する juiz の版 (タグかコミット)。juiz コマンドを入れた版と合わせる
-JUIZ_GIT_REF="${JUIZ_GIT_REF:-v0.0.24}"
+JUIZ_GIT_REF="${JUIZ_GIT_REF:-v0.0.25}"
 JUIZ_SOURCE_DIR="${JUIZ_SOURCE_DIR:-}"
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

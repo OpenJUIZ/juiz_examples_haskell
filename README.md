@@ -1,11 +1,13 @@
 # juiz_examples_haskell
 
 ロボット・IoT 向けミドルウェア [juiz](https://github.com/OpenJUIZ/juiz) の Haskell 版サンプル集です。
-Haskell 用のライブラリ hsjuiz と `libjuiz_sdk` は、ビルド時に `build.sh` が juiz のリポジトリから自動で取得するので、juiz のソースを手元に用意する必要はありません。
+Haskell 用のライブラリ hsjuiz と `libjuiz_sdk` は、いまはどちらも juiz のソースから入れます。ビルド時に `build.sh` が juiz のリポジトリ (タグ) から自動で取得してビルドするので、juiz のソースを手元に用意する必要はありません。
+
+> hsjuiz の Hackage 公開と、`libjuiz_sdk` の GitHub Releases での配布は準備中です。公開したら、ソースを取得せずにそちらを使う手順に変える予定です。
 
 Rust 版は [juiz_examples_rust](https://github.com/OpenJUIZ/juiz_examples_rust)、Python 版は [juiz_examples_python](https://github.com/OpenJUIZ/juiz_examples_python)、C++ 版は [juiz_examples_cpp](https://github.com/OpenJUIZ/juiz_examples_cpp) にあります。
 
-`juiz` コマンドは crates.io の [juiz_app](https://crates.io/crates/juiz_app) 0.0.24 を使います (Haskell 対応は 0.0.21 から、データ型は 0.0.23 から)。
+`juiz` コマンドは crates.io の [juiz_app](https://crates.io/crates/juiz_app) 0.0.25 を使います (Haskell 対応は 0.0.21 から、データ型は 0.0.23 から)。
 
 ## しくみ
 
@@ -23,7 +25,7 @@ Haskell のプラグインは juiz の Haskell ライブラリ hsjuiz (`bindings
 
 - Linux または macOS
 - GHC 9.6 以降と cabal。インストールは https://www.haskell.org/ghcup/ を参照してください。
-- Rust (stable)。インストールは https://rustup.rs/ を参照してください。
+- Rust (stable)。`juiz` コマンドと `libjuiz_sdk` のビルドに使います。インストールは https://rustup.rs/ を参照してください。
 - git
 - Linux では Python の開発用ファイル (`juiz` コマンドのビルドに使います。Ubuntu なら `sudo apt install python3-dev`)
 
@@ -32,7 +34,7 @@ hsjuiz は GHC に付いてくるパッケージ (base, text, containers, templa
 ## 1. juiz コマンドをインストールする
 
 ```sh
-cargo install juiz_app --version 0.0.24 --locked
+cargo install juiz_app --version 0.0.25 --locked
 ```
 
 `juiz` コマンドが `~/.cargo/bin` に入ります。
@@ -256,8 +258,8 @@ record Twist2D { double linear = 0.0; double angular = 0.0; }
 > データ型は juiz 0.0.23 から使えます。juiz コマンドと、Python の Process が使う pyjuiz は 0.0.23 以降を入れてください。
 >
 > ```sh
-> cargo install juiz_app --version 0.0.24 --locked
-> pip install pyjuiz==0.0.24
+> cargo install juiz_app --version 0.0.25 --locked
+> pip install pyjuiz==0.0.25
 > ```
 
 Haskell の Process [process/PoseMove.hs](process/PoseMove.hs) (`pose_move_hs`) は、types/geometry.jidl から作った型 (`Examples.Geometry`) をそのまま引数と戻り値に使います。型は `build.sh` が `juiz-idl -g haskell` で `build/gen-hs` に作ります (`juiz-idl` は juiz のソースからビルドします)。
@@ -360,6 +362,8 @@ juiz -f typed_mismatch.conf -d
 
 ## 自分で書くときは
 
+### このリポジトリに足す
+
 `.hs` ファイルを作り、[juiz-examples-haskell.cabal](juiz-examples-haskell.cabal) に `foreign-library` を追加します。
 ライブラリ名は設定ファイルに書く名前 (`process_factories` などのキー) と同じにしてください。juiz はその名前から `lib<名前>.so` を探します。
 
@@ -379,9 +383,35 @@ hsjuiz の書き方の詳細は juiz の [bindings/hsjuiz/README.md](https://git
 - 1 つの juiz で読み込む Haskell のプラグインは、すべて同じ GHC でビルドしてください (GHC のランタイムを共有するため)。
 - プラグインは GHC のライブラリと `build/dist-newstyle` の中の hsjuiz を参照するので、ビルドしたあと GHC を入れ替えたり `build` を消したりしたら、もう一度 `./build.sh` を実行してください。
 
+### 自分のプロジェクトで使う
+
+いちばん手早いのは、このリポジトリの [build.sh](build.sh)・[cabal.project](cabal.project)・[juiz-examples-haskell.cabal](juiz-examples-haskell.cabal) (`common plugin` の部分) をひな形にすることです。
+
+自分で用意するときは、juiz のソースを `juiz` コマンドと同じ版のタグで取得して `libjuiz_sdk` をビルドし、`cabal.project` で hsjuiz をそのソースから使います。
+
+```sh
+git clone --depth 1 --branch v0.0.25 https://github.com/OpenJUIZ/juiz.git ~/juiz-0.0.25
+cargo build --release -p juiz_sdk --manifest-path ~/juiz-0.0.25/Cargo.toml
+# => ~/juiz-0.0.25/target/release/libjuiz_sdk.so (macOS は .dylib)
+```
+
+```cabal
+-- cabal.project
+packages: . /home/me/juiz-0.0.25/bindings/hsjuiz
+
+-- hsjuiz は libjuiz_sdk にリンクする。rpath は、Template Haskell を動かすときに GHC が
+-- hsjuiz と一緒に libjuiz_sdk を読み込むために要る
+package hsjuiz
+  extra-lib-dirs: /home/me/juiz-0.0.25/target/release
+  ghc-options: -optl-Wl,-rpath,/home/me/juiz-0.0.25/target/release
+```
+
+自分のパッケージの `.cabal` では、`foreign-library` に `type: native-shared`、`build-depends: base, hsjuiz`、`ghc-options: -threaded` を書きます。
+juiz の版を上げるときは、`juiz` コマンドと juiz のソース (タグ) の版をそろえてください。
+
 ## juiz の版について
 
-`build.sh` が取得する juiz の版は `JUIZ_GIT_REF` で決まります。既定値は `v0.0.24` で、上の手順で入れた juiz_app 0.0.24 と組み合わせて使います。
+`build.sh` が取得する juiz の版は `JUIZ_GIT_REF` で決まります。既定値は `v0.0.25` で、上の手順で入れた juiz_app 0.0.25 と組み合わせて使います。
 別の版を使うときは、`juiz` コマンドを入れた版と合わせて指定してください。
 
 ```sh
