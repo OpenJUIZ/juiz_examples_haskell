@@ -20,7 +20,7 @@ concurrency:
 env:
   # README の手順で使う juiz の版 (タグ)。build.sh の JUIZ_GIT_REF と合わせる。
   # juiz コマンドと pyjuiz は同じ版 (先頭の v を除いたもの) を入れる
-  JUIZ_GIT_REF: "v0.0.26"
+  JUIZ_GIT_REF: "v0.0.27"
   # GHC と cabal の版。入れた GHC をキャッシュするので、キャッシュのキーが変わらないよう細かく固定する
   GHC_VERSION: "9.6.7"
   CABAL_VERSION: "3.18.1.0"
