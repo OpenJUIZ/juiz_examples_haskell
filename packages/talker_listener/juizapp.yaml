@@ -1,0 +1,8 @@
+# talker_listener.conf を .juizapp にしたもの。plugins/<ターゲット>/ のプラグインと、それが使う libjuiz_sdk・
+# GHC の共有ライブラリ・libffi・libgmp は scripts/make_packages.py が集める
+format: 1
+name: talker_listener
+version: 0.1.0
+description: "talker_hs と listener_hs を Push でつなぐ例 (Haskell)"
+license: MIT OR Apache-2.0
+entry: app.conf
