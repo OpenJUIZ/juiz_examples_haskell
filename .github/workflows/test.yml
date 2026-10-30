@@ -3,6 +3,7 @@ name: test
 on:
   push:
     branches: [main]
+    tags: ["v*"]
     paths-ignore: &docs
       - "**.md"
       - "LICENSE*"
@@ -20,7 +21,7 @@ concurrency:
 env:
   # README の手順で使う juiz の版 (タグ)。build.sh の JUIZ_GIT_REF と合わせる。
   # juiz コマンドと pyjuiz は同じ版 (先頭の v を除いたもの) を入れる
-  JUIZ_GIT_REF: "v0.0.27"
+  JUIZ_GIT_REF: "v0.0.28"
   # GHC と cabal の版。入れた GHC をキャッシュするので、キャッシュのキーが変わらないよう細かく固定する
   GHC_VERSION: "9.6.7"
   CABAL_VERSION: "3.18.1.0"
@@ -37,10 +38,11 @@ jobs:
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
-      # juiz コマンドは Python を組み込むので、ビルドに Python の開発用ファイルが要る
+      # juiz コマンドは Python を組み込むので、ビルドに Python の開発用ファイルが要る。
+      # patchelf は .juizapp に入れるプラグインと GHC の共有ライブラリの RUNPATH を書き換えるのに使う
       - name: ビルドに必要なものを入れる (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y python3-dev
+        run: sudo apt-get update && sudo apt-get install -y python3-dev patchelf
       # macOS の python3 は新しすぎて juiz コマンドの PyO3 が対応していないので、3.13 を使う
       - uses: actions/setup-python@v5
         if: runner.os == 'macOS'
@@ -96,3 +98,33 @@ jobs:
         run: ./build.sh
       - name: サンプルを動かして結果を確かめる
         run: python3 tests/test_examples.py
+      # テストで作った .juizapp (packages/) を、タグのときに Releases に載せるため残す。
+      # macos-15 は macos-latest と同じターゲット (aarch64-apple-darwin) なので残さない
+      - uses: actions/upload-artifact@v4
+        if: matrix.os != 'macos-15'
+        with:
+          name: juizapp-${{ matrix.os }}
+          path: dist/*.juizapp
+          if-no-files-found: error
+
+  # v* のタグを付けたときは、各 OS で作った .juizapp を Releases に載せる
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [examples]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: juizapp-*
+          path: dist
+          merge-multiple: true
+      - name: Releases に載せる
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          ls -l dist
+          gh release view "$GITHUB_REF_NAME" > /dev/null 2>&1 || gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --notes "サンプルのアプリの .juizapp (juiz ${GITHUB_REF_NAME#v} 用)"
+          gh release upload "$GITHUB_REF_NAME" dist/*.juizapp --clobber

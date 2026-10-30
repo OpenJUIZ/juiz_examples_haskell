@@ -1,3 +1,5 @@
 /build
 /dist-newstyle
 /gen
+/dist
+__pycache__/

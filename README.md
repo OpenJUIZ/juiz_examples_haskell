@@ -7,7 +7,7 @@
 
 Rust 版は [juiz_examples_rust](https://github.com/OpenJUIZ/juiz_examples_rust)、Python 版は [juiz_examples_python](https://github.com/OpenJUIZ/juiz_examples_python)、C++ 版は [juiz_examples_cpp](https://github.com/OpenJUIZ/juiz_examples_cpp) にあります。
 
-`juiz` コマンドは crates.io の [juiz_app](https://crates.io/crates/juiz_app) 0.0.27 を使います (Haskell 対応は 0.0.21 から、データ型は 0.0.23 から)。
+`juiz` コマンドは crates.io の [juiz_app](https://crates.io/crates/juiz_app) 0.0.28 を使います (Haskell 対応は 0.0.21 から、データ型は 0.0.23 から)。
 
 ## しくみ
 
@@ -34,7 +34,7 @@ hsjuiz は GHC に付いてくるパッケージ (base, text, containers, templa
 ## 1. juiz コマンドをインストールする
 
 ```sh
-cargo install juiz_app --version 0.0.27 --locked
+cargo install juiz_app --version 0.0.28 --locked
 ```
 
 `juiz` コマンドが `~/.cargo/bin` に入ります。
@@ -256,8 +256,8 @@ record Twist2D { double linear = 0.0; double angular = 0.0; }
 > データ型は juiz 0.0.23 から使えます。juiz コマンドと、Python の Process が使う pyjuiz は 0.0.23 以降を入れてください。
 >
 > ```sh
-> cargo install juiz_app --version 0.0.27 --locked
-> pip install pyjuiz==0.0.27
+> cargo install juiz_app --version 0.0.28 --locked
+> pip install pyjuiz==0.0.28
 > ```
 
 Haskell の Process [process/PoseMove.hs](process/PoseMove.hs) (`pose_move_hs`) は、types/geometry.jidl から作った型 (`Examples.Geometry`) をそのまま引数と戻り値に使います。型は `build.sh` が `juiz-idl -g haskell` で `build/gen-hs` に作ります (`juiz-idl` は juiz のソースからビルドします)。
@@ -344,6 +344,24 @@ juiz -f typed_mismatch.conf -d
 #     2: Type examples.geometry.Twist2D@sha256:115b9e0f… cannot be read as examples.geometry.Pose2D@sha256:123b8c15… at 'Pose2D': record name examples.geometry.Twist2D does not match examples.geometry.Pose2D (add an alias to read it)
 ```
 
+### アプリを .juizapp で配る
+
+`packages/talker_listener/` を、1 つのファイル (`.juizapp`、zip) にまとめて配れます (juiz 0.0.28 から)。受け取った人は、GHC も cabal も無しに `juiz run` だけで動かせます。
+
+```sh
+python3 scripts/make_packages.py      # 先に ./build.sh でビルドしておく
+# copied: libjuiz_sdk.so (...)
+# copied: libHSbase-<版>-ghc<版>.so (...)
+# ...
+# Packed talker_listener 0.1.0 (x86_64-unknown-linux-gnu; ... files) into .../dist/talker_listener-0.1.0-x86_64-unknown-linux-gnu.juizapp
+juiz run dist/talker_listener-0.1.0-x86_64-unknown-linux-gnu.juizapp
+# talker_hs: Hello, Juiz!
+# listener_hs: Hello, Juiz!
+```
+
+Haskell のプラグインは `libjuiz_sdk` のほかに GHC の共有ライブラリ (`libHSbase-*`、`libHSrts*` など) と libffi・libgmp にもリンクします。`scripts/make_packages.py` は juiz の `scripts/bundle-plugin-deps.sh` (`build.sh` が `build/juiz` に取得した juiz のソースにある) で、プラグインとそれらを `plugins/<この機械のターゲット>/` に集め、どれも隣を探すように書き換えてから `juiz pack --target <ターゲット>` を呼びます。Linux では `patchelf` が要ります (`sudo apt install patchelf` か `pip install patchelf`)。
+タグ (`v*`) を付けると、CI が Linux (x86_64) と macOS (arm64) で作った `.juizapp` をこのリポジトリの Releases に載せます。
+
 ## 構成
 
 | パス | 内容 |
@@ -356,6 +374,8 @@ juiz -f typed_mismatch.conf -d
 | `juiz-examples-haskell.cabal` | 各サンプルを `foreign-library` として宣言する |
 | `build.sh` | juiz のソースと libjuiz_sdk・juiz-idl を用意し、型を作ってサンプルをビルドし、`build/plugins` に置く |
 | `*.conf` | 各サンプルを動かすための juiz の設定ファイル |
+| `packages/` | `.juizapp` にするアプリのマニフェストと設定ファイル |
+| `scripts/make_packages.py` | ビルドしたプラグインと依存するライブラリを `packages/` のアプリに集め、`dist/` に `.juizapp` を作るスクリプト |
 | `tests/test_examples.py` | 上のサンプルを起動して呼び出し、結果を確かめるテスト (ビルドのあと `python3 tests/test_examples.py`)。CI でも実行する |
 
 ## 自分で書くときは
@@ -388,20 +408,20 @@ hsjuiz の書き方の詳細は juiz の [bindings/hsjuiz/README.md](https://git
 自分で用意するときは、`juiz` コマンドと同じ版の `libjuiz_sdk` のアーカイブを取得し、juiz のソースを同じ版のタグで取得して、`cabal.project` で hsjuiz をそのソースから使います。
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/OpenJUIZ/juiz/main/scripts/install-juiz-sdk.sh | sh -s -- 0.0.27
-# => ~/.juiz/sdk/0.0.27/lib/libjuiz_sdk.so (macOS は .dylib)
-git clone --depth 1 --branch v0.0.27 https://github.com/OpenJUIZ/juiz.git ~/juiz-0.0.27
+curl -fsSL https://raw.githubusercontent.com/OpenJUIZ/juiz/main/scripts/install-juiz-sdk.sh | sh -s -- 0.0.28
+# => ~/.juiz/sdk/0.0.28/lib/libjuiz_sdk.so (macOS は .dylib)
+git clone --depth 1 --branch v0.0.28 https://github.com/OpenJUIZ/juiz.git ~/juiz-0.0.28
 ```
 
 ```cabal
 -- cabal.project
-packages: . /home/me/juiz-0.0.27/bindings/hsjuiz
+packages: . /home/me/juiz-0.0.28/bindings/hsjuiz
 
 -- hsjuiz は libjuiz_sdk にリンクする。rpath は、Template Haskell を動かすときに GHC が
 -- hsjuiz と一緒に libjuiz_sdk を読み込むために要る
 package hsjuiz
-  extra-lib-dirs: /home/me/.juiz/sdk/0.0.27/lib
-  ghc-options: -optl-Wl,-rpath,/home/me/.juiz/sdk/0.0.27/lib
+  extra-lib-dirs: /home/me/.juiz/sdk/0.0.28/lib
+  ghc-options: -optl-Wl,-rpath,/home/me/.juiz/sdk/0.0.28/lib
 ```
 
 自分のパッケージの `.cabal` では、`foreign-library` に `type: native-shared`、`build-depends: base, hsjuiz`、`ghc-options: -threaded` を書きます。
@@ -409,7 +429,7 @@ juiz の版を上げるときは、`juiz` コマンド・`libjuiz_sdk`・juiz �
 
 ## juiz の版について
 
-`build.sh` が取得する juiz の版は `JUIZ_GIT_REF` で決まります。既定値は `v0.0.27` で、上の手順で入れた juiz_app 0.0.27 と組み合わせて使います。タグ (`v<版>`) を指定すると、その版の `libjuiz_sdk` のアーカイブを使います。コミットを指定したときや `JUIZ_SOURCE_DIR`・`JUIZ_SDK_FROM_SOURCE=1` を指定したときは、ソースから `libjuiz_sdk` をビルドします。
+`build.sh` が取得する juiz の版は `JUIZ_GIT_REF` で決まります。既定値は `v0.0.28` で、上の手順で入れた juiz_app 0.0.28 と組み合わせて使います。タグ (`v<版>`) を指定すると、その版の `libjuiz_sdk` のアーカイブを使います。コミットを指定したときや `JUIZ_SOURCE_DIR`・`JUIZ_SDK_FROM_SOURCE=1` を指定したときは、ソースから `libjuiz_sdk` をビルドします。
 別の版を使うときは、`juiz` コマンドを入れた版と合わせて指定してください。
 
 ```sh
