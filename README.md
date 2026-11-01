@@ -11,7 +11,7 @@ Rust 版は [juiz_examples_rust](https://github.com/OpenJUIZ/juiz_examples_rust)
 
 ## しくみ
 
-Haskell で書いた Process や Container は、cabal の `foreign-library` で共有ライブラリ (`lib*.so`、macOS では `lib*.dylib`) としてビルドし、`juiz` コマンドが設定ファイル (`*.conf`) を読んでプラグインとして読み込みます。
+Haskell で書いた Process や Container は、cabal の `foreign-library` で共有ライブラリ (`lib*.so`、macOS では `lib*.dylib`、Windows では `*.dll`) としてビルドし、`juiz` コマンドが設定ファイル (`*.conf`) を読んでプラグインとして読み込みます。
 
 Haskell のプラグインは juiz の Haskell ライブラリ hsjuiz (`bindings/hsjuiz`) を使って書き、juiz_sdk の共有ライブラリ `libjuiz_sdk` とリンクします。
 どちらも `cargo install juiz_app` では入らないので、このリポジトリの [build.sh](build.sh) が次のことを行います。
@@ -23,7 +23,7 @@ Haskell のプラグインは juiz の Haskell ライブラリ hsjuiz (`bindings
 
 ## 必要なもの
 
-- Linux または macOS
+- Linux、macOS、Windows (x86_64、juiz 0.0.27 から) のいずれか。Windows では Git Bash で `./build.sh` を実行し、Rust の MSVC ツールチェーン (Visual Studio か Build Tools の「C++ によるデスクトップ開発」) を使います。注意は下の「Windows でビルドするとき」を見てください
 - GHC 9.6 以降と cabal。インストールは https://www.haskell.org/ghcup/ を参照してください。
 - Rust (stable)。`juiz` コマンドと juiz-idl のビルドに使います。インストールは https://rustup.rs/ を参照してください。
 - git、curl
@@ -57,6 +57,15 @@ macOS で、選んでいる Xcode より新しい Command Line Tools (たとえ�
 ```sh
 JUIZ_SOURCE_DIR=/path/to/juiz ./build.sh
 ```
+
+### Windows でビルドするとき
+
+Git Bash で、上と同じく `./build.sh` を実行します。Linux・macOS と違うのは次の点です。
+
+- `libjuiz_sdk` は Windows のアーカイブ (`bin\juiz_sdk.dll` とインポートライブラリ `lib\juiz_sdk.dll.lib`) を juiz の `scripts/install-juiz-sdk.ps1` で取得し、`juiz_sdk.dll` を `build/plugins` に置きます。プラグインは lib の付かない `<名前>.dll` になります。Windows に rpath は無く、juiz はプラグインの隣の `juiz_sdk.dll` を読み込みます。
+- Windows の GHC は Haskell の共有ライブラリを持たないので、[juiz-examples-haskell.cabal](juiz-examples-haskell.cabal) は `foreign-library` ごとに `options: standalone` で RTS と hsjuiz を DLL に取り込み、公開する関数を [def/](def) の `<名前>.def` に並べています。ライブラリを足すときは `.def` も足してください。
+- DLL ごとに GHC のランタイムが別になるので、**別々の DLL の Container と ContainerProcess はつなげません** (呼ぶと `-602` のエラーになります)。`example_container.conf` は Windows では動かないので、Container を使うときは `example_component.conf` のように Component (1 つの DLL) にまとめてください。詳しくは juiz の [bindings/hsjuiz/README.md の「Windows」](https://github.com/OpenJUIZ/juiz/tree/main/bindings/hsjuiz#windows) を見てください。
+- リポジトリは浅い場所 (`C:\Users\<名前>\juiz_examples_haskell` など) に置いてください。深い場所では、GHC の中間ファイルや `build/juiz` のパスが 260 文字を超えてビルドが失敗します ([OpenJUIZ/juiz#279](https://github.com/OpenJUIZ/juiz/issues/279))。
 
 ## 3. 動かしてみる
 
@@ -359,7 +368,7 @@ juiz run dist/talker_listener-0.1.0-x86_64-unknown-linux-gnu.juizapp
 # listener_hs: Hello, Juiz!
 ```
 
-Haskell のプラグインは `libjuiz_sdk` のほかに GHC の共有ライブラリ (`libHSbase-*`、`libHSrts*` など) と libffi・libgmp にもリンクします。`scripts/make_packages.py` は juiz の `scripts/bundle-plugin-deps.sh` (`build.sh` が `build/juiz` に取得した juiz のソースにある) で、プラグインとそれらを `plugins/<この機械のターゲット>/` に集め、どれも隣を探すように書き換えてから `juiz pack --target <ターゲット>` を呼びます。Linux では `patchelf` が要ります (`sudo apt install patchelf` か `pip install patchelf`)。
+Haskell のプラグインは `libjuiz_sdk` のほかに GHC の共有ライブラリ (`libHSbase-*`、`libHSrts*` など) と libffi・libgmp にもリンクします。`scripts/make_packages.py` は juiz の `scripts/bundle-plugin-deps.sh` (`build.sh` が `build/juiz` に取得した juiz のソースにある) で、プラグインとそれらを `plugins/<この機械のターゲット>/` に集め、どれも隣を探すように書き換えてから `juiz pack --target <ターゲット>` を呼びます。Linux では `patchelf` が要ります (`sudo apt install patchelf` か `pip install patchelf`)。Windows の DLL は RTS と hsjuiz を中に取り込んでいるので、DLL と `juiz_sdk.dll` を写すだけです。
 タグ (`v*`) を付けると、CI が Linux (x86_64) と macOS (arm64) で作った `.juizapp` をこのリポジトリの Releases に載せます。
 
 ## 構成
@@ -383,7 +392,7 @@ Haskell のプラグインは `libjuiz_sdk` のほかに GHC の共有ライブ�
 ### このリポジトリに足す
 
 `.hs` ファイルを作り、[juiz-examples-haskell.cabal](juiz-examples-haskell.cabal) に `foreign-library` を追加します。
-ライブラリ名は設定ファイルに書く名前 (`process_factories` などのキー) と同じにしてください。juiz はその名前から `lib<名前>.so` を探します。
+ライブラリ名は設定ファイルに書く名前 (`process_factories` などのキー) と同じにしてください。juiz はその名前から `lib<名前>.so` (macOS では `lib<名前>.dylib`、Windows では `<名前>.dll`) を探します。
 
 ```cabal
 foreign-library my_process

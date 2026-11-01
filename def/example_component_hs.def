@@ -1,0 +1,15 @@
+; Windows で example_component_hs.dll から公開するシンボル (juiz-examples-haskell.cabal の mod-def-file)
+; juiz_hs_init は hsjuiz、performMajorGC は RTS のもの
+EXPORTS
+    juiz_hs_init
+    performMajorGC
+    component_manifest_entry_point
+    increment_manifest_entry_point
+    increment_factory_entry_point
+    createContainer_manifest_entry_point
+    createContainer_factory_entry_point
+    createContainer_factory_destroy_entry_point
+    containerGet_manifest_entry_point
+    containerGet_factory_entry_point
+    containerIncrement_manifest_entry_point
+    containerIncrement_factory_entry_point

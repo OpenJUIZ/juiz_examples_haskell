@@ -83,6 +83,16 @@ CASES = [
     ], "pose_print_python receives Pose2D(x=0.50, y=0.00, theta=0.00, frame_id=map)"),
 ]
 
+# Windows では動かせないサンプルと、その理由。Windows の Haskell の DLL はそれぞれ自分の GHC のランタイムを持つので、
+# 別の DLL で作った Container を ContainerProcess から読めない (-602)。Windows では Component (1 つの DLL) にまとめる
+# (example_component.conf)。juiz の bindings/hsjuiz/README.md の「Windows」
+WINDOWS_SKIP = {
+    "example_container.conf": "Container と ContainerProcess が別の DLL なので、Windows では動かせません",
+}
+
+# juiz の出力は UTF-8。Windows の既定のコードページ (日本語なら cp932) で読むと失敗するので、UTF-8 で読む
+TEXT = {"text": True, "encoding": "utf-8", "errors": "replace"}
+
 # 型の合わない接続 (Twist2D を Pose2D の引数へ) を書いた設定ファイル。juiz は起動せずにエラーで終わる
 MISMATCH_CONF = "typed_mismatch.conf"
 MISMATCH_ERROR = f"{TWIST2D_ID} cannot be read as {POSE2D_ID}"
@@ -99,7 +109,7 @@ def run_call(juiz: str, args) -> tuple[int, str, str]:
                 return 0, response.read().decode("utf-8"), ""
         except OSError as e:
             return 1, "", str(e)
-    result = subprocess.run([juiz, *args], cwd=ROOT, capture_output=True, text=True, timeout=30)
+    result = subprocess.run([juiz, *args], cwd=ROOT, capture_output=True, timeout=30, **TEXT)
     return result.returncode, result.stdout, result.stderr
 
 
@@ -107,7 +117,7 @@ def generate_python_types(juiz: str) -> bool:
     """README の手順どおり、データ型のサンプルの Python の型を gen/ に作る。"""
     print("--- juiz idl -g python -o gen types/geometry.jidl", flush=True)
     result = subprocess.run([juiz, "idl", "-g", "python", "-o", "gen", "types/geometry.jidl"], cwd=ROOT,
-                            capture_output=True, text=True, timeout=60)
+                            capture_output=True, timeout=60, **TEXT)
     if result.returncode != 0:
         print(f"NG: juiz idl が失敗しました\n{result.stdout}{result.stderr}", file=sys.stderr)
         return False
@@ -119,8 +129,8 @@ def run_mismatch(juiz: str) -> bool:
     print(f"--- {MISMATCH_CONF}", flush=True)
     wait_for_port_free(PORT, 30)
     try:
-        result = subprocess.run([juiz, "-f", MISMATCH_CONF, "-d"], cwd=ROOT, capture_output=True, text=True,
-                                timeout=60)
+        result = subprocess.run([juiz, "-f", MISMATCH_CONF, "-d"], cwd=ROOT, capture_output=True, timeout=60,
+                                **TEXT)
     except subprocess.TimeoutExpired:
         print("NG: 型の合わない接続なのに juiz が起動したままです", file=sys.stderr)
         return False
@@ -271,7 +281,7 @@ def run_two_namespaces(juiz: str) -> bool:
             (["process", "call", r2, '{"arg1": 10}', "-p"], "Value(11)"),
         ]
         for args, expected in calls:
-            result = subprocess.run([juiz, *args], cwd=ROOT, capture_output=True, text=True, timeout=60)
+            result = subprocess.run([juiz, *args], cwd=ROOT, capture_output=True, timeout=60, **TEXT)
             print(f"juiz {' '.join(args)}\n  {result.stdout.strip()}", flush=True)
             if result.returncode != 0 or expected not in result.stdout:
                 print(f"NG: {expected!r} が出力に含まれていません\n{result.stderr}", file=sys.stderr)
@@ -343,7 +353,13 @@ def main() -> int:
         return 1
     if not generate_python_types(juiz):
         return 1
-    failed = [conf for conf, calls, expected in CASES if not run_case(juiz, conf, calls, expected)]
+    failed = []
+    for conf, calls, expected in CASES:
+        if os.name == "nt" and conf in WINDOWS_SKIP:
+            print(f"--- {conf}\n  飛ばします: {WINDOWS_SKIP[conf]}", flush=True)
+            continue
+        if not run_case(juiz, conf, calls, expected):
+            failed.append(conf)
     if not run_two_namespaces(juiz):
         failed.append("increment_process.conf --namespace")
     if not run_mismatch(juiz):

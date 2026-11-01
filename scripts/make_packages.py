@@ -9,6 +9,7 @@ plugins/<この機械のターゲット>/ に集めて使う。Haskell のプラ
 (build.sh が build/juiz に取得した juiz のソースにある) でそれらを隣に写し、どれも隣を探すように書き換える。
 受け取る側に GHC が無くても動く。写した結果を build/packages/<名前>/ に作り、
 `juiz pack --target <ターゲット>` で <出力先>/<名前>-<版>-<ターゲット>.juizapp を作る。
+Windows の DLL は RTS と hsjuiz を取り込んでいる (options: standalone) ので、DLL と juiz_sdk.dll を写すだけにする。
 
 要るもの: Linux は patchelf (apt install patchelf か pip install patchelf)、macOS は Xcode の Command Line Tools。
 """
@@ -60,6 +61,11 @@ def stage(name: str, plugins: list[str], target: str, build_dir: str) -> str:
         source = os.path.join(build_dir, library_name(plugin))
         if not os.path.exists(source):
             raise SystemExit(f"{source} がありません (先に ./build.sh を実行してください)")
+        if sys.platform == "win32":
+            # DLL が使う Haskell のライブラリは DLL の中にあるので、DLL と juiz_sdk.dll だけを隣に置く
+            shutil.copy2(source, plugin_dir)
+            shutil.copy2(os.path.join(build_dir, "juiz_sdk.dll"), plugin_dir)
+            continue
         # プラグインと、それが使うライブラリ (OS の基本のものを除く) を plugin_dir に集める
         result = subprocess.run(["bash", BUNDLE_SCRIPT, source, plugin_dir], cwd=ROOT)
         if result.returncode != 0:
@@ -79,10 +85,7 @@ def main() -> int:
     if juiz is None:
         print("juiz コマンドが見つかりません", file=sys.stderr)
         return 1
-    if sys.platform == "win32":
-        print("Haskell のサンプルは Linux と macOS だけです", file=sys.stderr)
-        return 1
-    if not os.path.exists(BUNDLE_SCRIPT):
+    if sys.platform != "win32" and not os.path.exists(BUNDLE_SCRIPT):
         print(f"{BUNDLE_SCRIPT} がありません (juiz 0.0.28 以降のソースで ./build.sh を実行してください)",
               file=sys.stderr)
         return 1
