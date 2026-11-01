@@ -22,6 +22,8 @@ build-type:         Simple
 -- Windows の GHC は Haskell の共有ライブラリを持たないので、foreign-library ごとに options: standalone で
 -- RTS と hsjuiz を DLL に取り込み、公開する関数を def/<名前>.def に並べて mod-def-file で渡す
 -- (common に書いても cabal は受け付けない。juiz の bindings/hsjuiz/README.md の「Windows」)。
+-- また Windows では -fno-PIC を付ける。-fPIC のジャンプテーブルが壊れ、構成子が 7 個以上の型の case や show が
+-- 落ちるため (juiz の issue #262、GHC の不具合 https://gitlab.haskell.org/ghc/ghc/-/issues/24016)。
 
 common plugin
     default-language: Haskell2010
@@ -30,7 +32,9 @@ common plugin
     ghc-options:      -Wall -threaded
     if os(darwin)
         ghc-options:  -optl-Wl,-rpath,@loader_path
-    elif !os(windows)
+    elif os(windows)
+        ghc-options:  -fno-PIC
+    else
         ghc-options:  -optl-Wl,-rpath,$ORIGIN
 
 -- Process
