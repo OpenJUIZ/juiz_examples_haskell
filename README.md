@@ -64,6 +64,7 @@ Git Bash で、上と同じく `./build.sh` を実行します。Linux・macOS �
 
 - `libjuiz_sdk` は Windows のアーカイブ (`bin\juiz_sdk.dll` とインポートライブラリ `lib\juiz_sdk.dll.lib`) を juiz の `scripts/install-juiz-sdk.ps1` で取得し、`juiz_sdk.dll` を `build/plugins` に置きます。プラグインは lib の付かない `<名前>.dll` になります。Windows に rpath は無く、juiz はプラグインの隣の `juiz_sdk.dll` を読み込みます。
 - Windows の GHC は Haskell の共有ライブラリを持たないので、[juiz-examples-haskell.cabal](juiz-examples-haskell.cabal) は `foreign-library` ごとに `options: standalone` で RTS と hsjuiz を DLL に取り込み、公開する関数を [def/](def) の `<名前>.def` に並べています。ライブラリを足すときは `.def` も足してください。
+- Windows では `-fno-PIC` でコンパイルします (`common plugin`)。`-fPIC` のままだと、構成子が 7 個以上ある型の `case` や `show` でプロセスが落ちます ([OpenJUIZ/juiz#262](https://github.com/OpenJUIZ/juiz/issues/262)、GHC の不具合 [ghc#24016](https://gitlab.haskell.org/ghc/ghc/-/issues/24016))。自分のプロジェクトを作るときも付けてください。
 - DLL ごとに GHC のランタイムが別になるので、**別々の DLL の Container と ContainerProcess はつなげません** (呼ぶと `-602` のエラーになります)。`example_container.conf` は Windows では動かないので、Container を使うときは `example_component.conf` のように Component (1 つの DLL) にまとめてください。詳しくは juiz の [bindings/hsjuiz/README.md の「Windows」](https://github.com/OpenJUIZ/juiz/tree/main/bindings/hsjuiz#windows) を見てください。
 - リポジトリは浅い場所 (`C:\Users\<名前>\juiz_examples_haskell` など) に置いてください。深い場所では、GHC の中間ファイルや `build/juiz` のパスが 260 文字を超えてビルドが失敗します ([OpenJUIZ/juiz#279](https://github.com/OpenJUIZ/juiz/issues/279))。
 
