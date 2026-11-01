@@ -1,0 +1,7 @@
+; Windows で increment_process_hs.dll から公開するシンボル (juiz-examples-haskell.cabal の mod-def-file)
+; juiz_hs_init は hsjuiz、performMajorGC は RTS のもの
+EXPORTS
+    juiz_hs_init
+    performMajorGC
+    manifest_entry_point
+    process_factory_entry_point

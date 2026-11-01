@@ -10,13 +10,18 @@ maintainer:         ysuga
 homepage:           https://github.com/OpenJUIZ/juiz_examples_haskell
 build-type:         Simple
 
--- juiz が読み込む共有ライブラリ (Linux は lib<名前>.so、macOS は lib<名前>.dylib) を foreign-library で作る。
--- ライブラリ名は設定ファイルに書く名前 (process_factories などのキー) と同じにする。
+-- juiz が読み込む共有ライブラリ (Linux は lib<名前>.so、macOS は lib<名前>.dylib、Windows は <名前>.dll) を
+-- foreign-library で作る。ライブラリ名は設定ファイルに書く名前 (process_factories などのキー) と同じにする。
 --
 -- juiz は Process をワーカースレッドから呼ぶので -threaded の RTS が必要
 -- (-threaded でなければ読み込みがエラーになる)。
 -- libjuiz_sdk は build.sh が build/plugins に置き、--extra-lib-dirs で渡す。
--- プラグインには自分と同じ場所から libjuiz_sdk を探す rpath を付ける。
+-- Linux・macOS のプラグインには、自分と同じ場所から libjuiz_sdk を探す rpath を付ける
+-- (Windows に rpath は無く、juiz はプラグインの隣の juiz_sdk.dll を読み込む)。
+--
+-- Windows の GHC は Haskell の共有ライブラリを持たないので、foreign-library ごとに options: standalone で
+-- RTS と hsjuiz を DLL に取り込み、公開する関数を def/<名前>.def に並べて mod-def-file で渡す
+-- (common に書いても cabal は受け付けない。juiz の bindings/hsjuiz/README.md の「Windows」)。
 
 common plugin
     default-language: Haskell2010
@@ -25,25 +30,34 @@ common plugin
     ghc-options:      -Wall -threaded
     if os(darwin)
         ghc-options:  -optl-Wl,-rpath,@loader_path
-    else
+    elif !os(windows)
         ghc-options:  -optl-Wl,-rpath,$ORIGIN
 
 -- Process
 foreign-library increment_process_hs
     import:           plugin
     type:             native-shared
+    if os(windows)
+        options:      standalone
+        mod-def-file: def/increment_process_hs.def
     hs-source-dirs:   process
     other-modules:    IncrementProcess
 
 foreign-library decrement_process_hs
     import:           plugin
     type:             native-shared
+    if os(windows)
+        options:      standalone
+        mod-def-file: def/decrement_process_hs.def
     hs-source-dirs:   process
     other-modules:    DecrementProcess
 
 foreign-library talker_hs
     import:           plugin
     type:             native-shared
+    if os(windows)
+        options:      standalone
+        mod-def-file: def/talker_hs.def
     hs-source-dirs:   process
     build-depends:    text
     other-modules:    Talker
@@ -51,6 +65,9 @@ foreign-library talker_hs
 foreign-library listener_hs
     import:           plugin
     type:             native-shared
+    if os(windows)
+        options:      standalone
+        mod-def-file: def/listener_hs.def
     hs-source-dirs:   process
     build-depends:    text
     other-modules:    Listener
@@ -59,6 +76,9 @@ foreign-library listener_hs
 foreign-library pose_move_hs
     import:           plugin
     type:             native-shared
+    if os(windows)
+        options:      standalone
+        mod-def-file: def/pose_move_hs.def
     hs-source-dirs:   process build/gen-hs
     build-depends:    bytestring, containers, text
     other-modules:    PoseMove
@@ -68,6 +88,9 @@ foreign-library pose_move_hs
 foreign-library example_container_hs
     import:           plugin
     type:             native-shared
+    if os(windows)
+        options:      standalone
+        mod-def-file: def/example_container_hs.def
     hs-source-dirs:   container
     other-modules:    ExampleContainer
                       ExampleContainerState
@@ -75,6 +98,9 @@ foreign-library example_container_hs
 foreign-library example_container_hs_increment
     import:           plugin
     type:             native-shared
+    if os(windows)
+        options:      standalone
+        mod-def-file: def/example_container_hs_increment.def
     hs-source-dirs:   container
     other-modules:    ExampleContainerIncrement
                       ExampleContainerState
@@ -82,6 +108,9 @@ foreign-library example_container_hs_increment
 foreign-library example_container_hs_get
     import:           plugin
     type:             native-shared
+    if os(windows)
+        options:      standalone
+        mod-def-file: def/example_container_hs_get.def
     hs-source-dirs:   container
     other-modules:    ExampleContainerGet
                       ExampleContainerState
@@ -90,5 +119,8 @@ foreign-library example_container_hs_get
 foreign-library example_component_hs
     import:           plugin
     type:             native-shared
+    if os(windows)
+        options:      standalone
+        mod-def-file: def/example_component_hs.def
     hs-source-dirs:   component
     other-modules:    ExampleComponent

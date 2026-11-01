@@ -32,8 +32,10 @@ juiz_dir="$build_dir/juiz"
 plugin_dir="$build_dir/plugins"
 
 case "$(uname -s)" in
-    Darwin) ext=dylib ;;
-    *) ext=so ;;
+    Darwin) ext=dylib; prefix=lib ;;
+    # Windows (Git Bash など): DLL は lib の付かない <名前>.dll
+    MINGW* | MSYS* | CYGWIN*) ext=dll; prefix=""; exe=.exe ;;
+    *) ext=so; prefix=lib ;;
 esac
 
 mkdir -p "$build_dir" "$plugin_dir"
@@ -69,10 +71,24 @@ if [[ ! -e "$juiz_dir/bindings/hsjuiz/hsjuiz.cabal" ]]; then
 fi
 
 # 2. libjuiz_sdk
+# sdk_lib は juiz が読み込む共有ライブラリ。Windows ではリンクに使うインポートライブラリ (sdk_implib) も要る
 sdk_lib=""
+sdk_implib=""
 if [[ -z "$JUIZ_SOURCE_DIR" && -z "$JUIZ_SDK_FROM_SOURCE" && "$JUIZ_GIT_REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     sdk_archive_dir="$build_dir/juiz_sdk_archive/${JUIZ_GIT_REF#v}"
-    if [[ -e "$sdk_archive_dir/lib/libjuiz_sdk.$ext" ]] \
+    if [[ "$ext" == dll ]]; then
+        # Windows のアーカイブ (0.0.27 から) は bin/juiz_sdk.dll と lib/juiz_sdk.dll.lib。取得は PowerShell の install-juiz-sdk.ps1。
+        # PowerShell 7 から開いた Git Bash では PSModulePath が PowerShell 7 のものになっていて、Windows PowerShell 5.1 が
+        # 標準のモジュール (Get-FileHash など) を読み込めないので、PSModulePath を外して 5.1 に既定値を使わせる
+        if [[ -e "$sdk_archive_dir/bin/juiz_sdk.dll" ]] \
+            || env -u PSModulePath powershell.exe -NoProfile -ExecutionPolicy Bypass \
+                -File "$(cygpath -w "$juiz_dir/scripts/install-juiz-sdk.ps1")" "$JUIZ_GIT_REF" "$(cygpath -w "$sdk_archive_dir")"; then
+            sdk_lib="$sdk_archive_dir/bin/juiz_sdk.dll"
+            sdk_implib="$sdk_archive_dir/lib/juiz_sdk.dll.lib"
+        else
+            echo "libjuiz_sdk のアーカイブを取得できなかったので、ソースからビルドします"
+        fi
+    elif [[ -e "$sdk_archive_dir/lib/libjuiz_sdk.$ext" ]] \
         || sh "$juiz_dir/scripts/install-juiz-sdk.sh" "$JUIZ_GIT_REF" "$sdk_archive_dir"; then
         sdk_lib="$sdk_archive_dir/lib/libjuiz_sdk.$ext"
     else
@@ -83,16 +99,24 @@ if [[ -z "$sdk_lib" ]]; then
     cargo build --release -p juiz_sdk \
         --manifest-path "$juiz_dir/Cargo.toml" \
         --target-dir "$build_dir/juiz_sdk"
-    sdk_lib="$build_dir/juiz_sdk/release/libjuiz_sdk.$ext"
+    sdk_lib="$build_dir/juiz_sdk/release/${prefix}juiz_sdk.$ext"
+    sdk_implib="$build_dir/juiz_sdk/release/juiz_sdk.dll.lib"
 fi
 cp "$sdk_lib" "$plugin_dir/"
+if [[ "$ext" == dll ]]; then
+    # Rust が作るインポートライブラリは juiz_sdk.dll.lib という名前で、GHC のリンカ (-ljuiz_sdk) は
+    # juiz_sdk.lib などしか探さないので、juiz_sdk.lib として別のディレクトリに置く
+    import_dir="$build_dir/juiz_sdk_import"
+    mkdir -p "$import_dir"
+    cp "$sdk_implib" "$import_dir/juiz_sdk.lib"
+fi
 
 # 3. 型。Python の型を置く gen/ (examples/geometry) とは分ける
 # (macOS の大文字小文字を区別しないファイルシステムでは Examples/ と examples/ が同じディレクトリになるため)
 cargo build --release -p juiz_idl \
     --manifest-path "$juiz_dir/Cargo.toml" \
     --target-dir "$build_dir/juiz_sdk"
-"$build_dir/juiz_sdk/release/juiz-idl" -g haskell -o "$build_dir/gen-hs" "$root/types/geometry.jidl" > /dev/null
+"$build_dir/juiz_sdk/release/juiz-idl${exe:-}" -g haskell -o "$build_dir/gen-hs" "$root/types/geometry.jidl" > /dev/null
 
 # 4. サンプル
 cd "$root"
@@ -118,17 +142,26 @@ fi
 # Template Haskell を動かすときに GHC が hsjuiz と一緒に libjuiz_sdk を読み込むので、探す場所に加える
 export LD_LIBRARY_PATH="$plugin_dir${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 export DYLD_LIBRARY_PATH="$plugin_dir${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
-cabal build all --builddir="$build_dir/dist-newstyle" --extra-lib-dirs="$plugin_dir"
+if [[ "$ext" == dll ]]; then
+    # Windows に rpath は無い。リンクにはインポートライブラリ、Template Haskell には juiz_sdk.dll の場所を渡す
+    cabal build all --builddir="$build_dir/dist-newstyle" \
+        --extra-lib-dirs="$import_dir" --extra-lib-dirs="$plugin_dir"
+else
+    cabal build all --builddir="$build_dir/dist-newstyle" --extra-lib-dirs="$plugin_dir"
+fi
 
-# juiz は設定ファイルに書いた名前 NAME から lib<NAME>.so (macOS では lib<NAME>.dylib) を探す
+# juiz は設定ファイルに書いた名前 NAME から lib<NAME>.so (macOS では lib<NAME>.dylib、Windows では <NAME>.dll) を探す
 for name in $(sed -n -E 's/^foreign-library[[:space:]]+//p' juiz-examples-haskell.cabal); do
-    lib=$(find "$build_dir/dist-newstyle" -name "lib$name.$ext" -type f | head -n 1)
+    lib=$(find "$build_dir/dist-newstyle" -name "$prefix$name.$ext" -type f | head -n 1)
     if [[ -z "$lib" ]]; then
-        echo "error: lib$name.$ext が見つかりません" >&2
+        echo "error: $prefix$name.$ext が見つかりません" >&2
         exit 1
     fi
     cp "$lib" "$plugin_dir/"
 done
-# hsjuiz の共有ライブラリも隣に置く (プラグインは $ORIGIN からも探す)
-find "$build_dir/dist-newstyle" -name "libHShsjuiz-*.$ext" -type f -exec cp {} "$plugin_dir/" \;
+if [[ "$ext" != dll ]]; then
+    # hsjuiz の共有ライブラリも隣に置く (プラグインは $ORIGIN からも探す)。
+    # Windows では RTS と hsjuiz を各 DLL に静的に取り込む (options: standalone) ので要らない
+    find "$build_dir/dist-newstyle" -name "libHShsjuiz-*.$ext" -type f -exec cp {} "$plugin_dir/" \;
+fi
 echo "プラグインを $plugin_dir に置きました"
