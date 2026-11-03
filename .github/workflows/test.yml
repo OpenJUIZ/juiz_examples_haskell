@@ -19,11 +19,9 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # README の手順で使う juiz の版 (タグかコミット)。build.sh の JUIZ_GIT_REF と合わせる。
-  # juiz コマンドと pyjuiz は同じ版を入れる。
-  # Transformations のサンプル (transformations.conf) は juiz の次の版で入る機能を使うので、公開までは
-  # juiz の main のコミットにする。公開後はその版のタグ (v<版>) に戻し、cargo install / pip install も版の指定に戻す
-  JUIZ_GIT_REF: "b90770b1b6451a37bd712b22b33c78da882496d7"
+  # README の手順で使う juiz の版 (タグ)。build.sh の JUIZ_GIT_REF と合わせる。
+  # juiz コマンドと pyjuiz は同じ版 (先頭の v を除いたもの) を入れる
+  JUIZ_GIT_REF: "v0.2.0"
   # GHC と cabal の版。入れた GHC をキャッシュするので、キャッシュのキーが変わらないよう細かく固定する
   GHC_VERSION: "9.6.7"
   CABAL_VERSION: "3.18.1.0"
@@ -87,10 +85,10 @@ jobs:
           key: juiz-app-${{ env.JUIZ_GIT_REF }}-${{ runner.os }}-${{ runner.arch }}
       - name: juiz コマンドをインストールする
         if: steps.juiz-cache.outputs.cache-hit != 'true'
-        run: cargo install juiz_app --git https://github.com/OpenJUIZ/juiz --rev "$JUIZ_GIT_REF" --locked
+        run: cargo install juiz_app --version "${JUIZ_GIT_REF#v}" --locked
       # データ型のサンプル (typed_pose.conf) の Python の Process が pyjuiz を使う
       - name: pyjuiz をインストールする
-        run: python3 -m pip install --user --break-system-packages "pyjuiz @ git+https://github.com/OpenJUIZ/juiz@${JUIZ_GIT_REF}#subdirectory=bindings/pyjuiz"
+        run: python3 -m pip install --user --break-system-packages "pyjuiz==${JUIZ_GIT_REF#v}"
       - name: juiz-idl のビルド結果のキャッシュ
         uses: actions/cache@v4
         with:

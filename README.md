@@ -7,7 +7,7 @@
 
 Rust 版は [juiz_examples_rust](https://github.com/OpenJUIZ/juiz_examples_rust)、Python 版は [juiz_examples_python](https://github.com/OpenJUIZ/juiz_examples_python)、C++ 版は [juiz_examples_cpp](https://github.com/OpenJUIZ/juiz_examples_cpp) にあります。
 
-`juiz` コマンドは crates.io の [juiz_app](https://crates.io/crates/juiz_app) 0.1.0 を使います (Haskell 対応は 0.0.21 から、データ型は 0.0.23 から)。Transformations のサンプルだけは juiz の次の版の機能を使うので、公開までは juiz の main のコミットを使います ([Transformations](#transformations-部品の位置関係を木にする) を参照)。
+`juiz` コマンドは crates.io の [juiz_app](https://crates.io/crates/juiz_app) 0.2.0 を使います (Haskell 対応は 0.0.21 から、データ型は 0.0.23 から)。
 
 ## しくみ
 
@@ -34,7 +34,7 @@ hsjuiz は GHC に付いてくるパッケージ (base, text, containers, templa
 ## 1. juiz コマンドをインストールする
 
 ```sh
-cargo install juiz_app --version 0.1.0 --locked
+cargo install juiz_app --version 0.2.0 --locked
 ```
 
 `juiz` コマンドが `~/.cargo/bin` に入ります。
@@ -266,8 +266,8 @@ record Twist2D { double linear = 0.0; double angular = 0.0; }
 > データ型は juiz 0.0.23 から使えます。juiz コマンドと、Python の Process が使う pyjuiz は 0.0.23 以降を入れてください。
 >
 > ```sh
-> cargo install juiz_app --version 0.1.0 --locked
-> pip install pyjuiz==0.1.0
+> cargo install juiz_app --version 0.2.0 --locked
+> pip install pyjuiz==0.2.0
 > ```
 
 Haskell の Process [process/PoseMove.hs](process/PoseMove.hs) (`pose_move_hs`) は、types/geometry.jidl から作った型 (`Examples.Geometry`) をそのまま引数と戻り値に使います。型は `build.sh` が `juiz-idl -g haskell` で `build/gen-hs` に作ります (`juiz-idl` は juiz のソースからビルドします)。
@@ -358,8 +358,7 @@ juiz -f typed_mismatch.conf -d
 
 ロボットの部品 (台車・雲台・カメラ) を Container にし、部品同士のつながり (Transform) と基点 (Anchor) を設定ファイルに書くと、juiz が各部品の位置姿勢 (ContainerPose) を計算します。
 
-> juiz の次の版 (0.2 系) で入る機能です。公開までは `build.sh` の `JUIZ_GIT_REF` を juiz の main のコミットにしてあり、libjuiz_sdk は juiz のソースからビルドします。juiz コマンドも同じコミットから入れてください:
-> `cargo install juiz_app --git https://github.com/OpenJUIZ/juiz --rev b90770b1b6451a37bd712b22b33c78da882496d7 --locked`
+> juiz 0.2.0 から使える機能です。
 
 `transformations.conf` の木は次のとおりです。`map` と `odom` は juiz に組み込みの Anchor で、プラグインは要りません。
 
@@ -487,20 +486,20 @@ hsjuiz の書き方の詳細は juiz の [bindings/hsjuiz/README.md](https://git
 自分で用意するときは、`juiz` コマンドと同じ版の `libjuiz_sdk` のアーカイブを取得し、juiz のソースを同じ版のタグで取得して、`cabal.project` で hsjuiz をそのソースから使います。
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/OpenJUIZ/juiz/main/scripts/install-juiz-sdk.sh | sh -s -- 0.1.0
-# => ~/.juiz/sdk/0.1.0/lib/libjuiz_sdk.so (macOS は .dylib)
-git clone --depth 1 --branch v0.1.0 https://github.com/OpenJUIZ/juiz.git ~/juiz-0.1.0
+curl -fsSL https://raw.githubusercontent.com/OpenJUIZ/juiz/main/scripts/install-juiz-sdk.sh | sh -s -- 0.2.0
+# => ~/.juiz/sdk/0.2.0/lib/libjuiz_sdk.so (macOS は .dylib)
+git clone --depth 1 --branch v0.2.0 https://github.com/OpenJUIZ/juiz.git ~/juiz-0.2.0
 ```
 
 ```cabal
 -- cabal.project
-packages: . /home/me/juiz-0.1.0/bindings/hsjuiz
+packages: . /home/me/juiz-0.2.0/bindings/hsjuiz
 
 -- hsjuiz は libjuiz_sdk にリンクする。rpath は、Template Haskell を動かすときに GHC が
 -- hsjuiz と一緒に libjuiz_sdk を読み込むために要る
 package hsjuiz
-  extra-lib-dirs: /home/me/.juiz/sdk/0.1.0/lib
-  ghc-options: -optl-Wl,-rpath,/home/me/.juiz/sdk/0.1.0/lib
+  extra-lib-dirs: /home/me/.juiz/sdk/0.2.0/lib
+  ghc-options: -optl-Wl,-rpath,/home/me/.juiz/sdk/0.2.0/lib
 ```
 
 自分のパッケージの `.cabal` では、`foreign-library` に `type: native-shared`、`build-depends: base, hsjuiz`、`ghc-options: -threaded` を書きます。
@@ -508,7 +507,7 @@ juiz の版を上げるときは、`juiz` コマンド・`libjuiz_sdk`・juiz �
 
 ## juiz の版について
 
-`build.sh` が取得する juiz の版は `JUIZ_GIT_REF` で決まります。既定値は `v0.1.0` で、上の手順で入れた juiz_app 0.1.0 と組み合わせて使います (今は Transformations のサンプルのために、既定値を juiz の main のコミット `b90770b1b6451a37bd712b22b33c78da882496d7` にしています。次の版の公開後にその版のタグに戻します)。タグ (`v<版>`) を指定すると、その版の `libjuiz_sdk` のアーカイブを使います。コミットを指定したときや `JUIZ_SOURCE_DIR`・`JUIZ_SDK_FROM_SOURCE=1` を指定したときは、ソースから `libjuiz_sdk` をビルドします。
+`build.sh` が取得する juiz の版は `JUIZ_GIT_REF` で決まります。既定値は `v0.2.0` で、上の手順で入れた juiz_app 0.2.0 と組み合わせて使います。タグ (`v<版>`) を指定すると、その版の `libjuiz_sdk` のアーカイブを使います。コミットを指定したときや `JUIZ_SOURCE_DIR`・`JUIZ_SDK_FROM_SOURCE=1` を指定したときは、ソースから `libjuiz_sdk` をビルドします。
 別の版を使うときは、`juiz` コマンドを入れた版と合わせて指定してください。
 
 ```sh
