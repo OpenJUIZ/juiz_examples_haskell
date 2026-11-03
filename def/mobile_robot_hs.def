@@ -1,0 +1,23 @@
+; Windows で mobile_robot_hs.dll から公開するシンボル (juiz-examples-haskell.cabal の mod-def-file)
+; juiz_hs_init は hsjuiz、performMajorGC は RTS のもの
+EXPORTS
+    juiz_hs_init
+    performMajorGC
+    component_manifest_entry_point
+    posePrint_manifest_entry_point
+    posePrint_factory_entry_point
+    createMobileBase_manifest_entry_point
+    createMobileBase_factory_entry_point
+    createMobileBase_factory_destroy_entry_point
+    move_manifest_entry_point
+    move_factory_entry_point
+    createPantilt_manifest_entry_point
+    createPantilt_factory_entry_point
+    createPantilt_factory_destroy_entry_point
+    setPan_manifest_entry_point
+    setPan_factory_entry_point
+    createCamera_manifest_entry_point
+    createCamera_factory_entry_point
+    createCamera_factory_destroy_entry_point
+    cameraPose_manifest_entry_point
+    cameraPose_factory_entry_point
