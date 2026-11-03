@@ -7,7 +7,7 @@
 
 Rust 版は [juiz_examples_rust](https://github.com/OpenJUIZ/juiz_examples_rust)、Python 版は [juiz_examples_python](https://github.com/OpenJUIZ/juiz_examples_python)、C++ 版は [juiz_examples_cpp](https://github.com/OpenJUIZ/juiz_examples_cpp) にあります。
 
-`juiz` コマンドは crates.io の [juiz_app](https://crates.io/crates/juiz_app) 0.1.0 を使います (Haskell 対応は 0.0.21 から、データ型は 0.0.23 から)。
+`juiz` コマンドは crates.io の [juiz_app](https://crates.io/crates/juiz_app) 0.1.0 を使います (Haskell 対応は 0.0.21 から、データ型は 0.0.23 から)。Transformations のサンプルだけは juiz の次の版の機能を使うので、公開までは juiz の main のコミットを使います ([Transformations](#transformations-部品の位置関係を木にする) を参照)。
 
 ## しくみ
 
@@ -354,6 +354,75 @@ juiz -f typed_mismatch.conf -d
 #     2: Type examples.geometry.Twist2D@sha256:115b9e0f… cannot be read as examples.geometry.Pose2D@sha256:123b8c15… at 'Pose2D': record name examples.geometry.Twist2D does not match examples.geometry.Pose2D (add an alias to read it)
 ```
 
+### Transformations: 部品の位置関係を木にする
+
+ロボットの部品 (台車・雲台・カメラ) を Container にし、部品同士のつながり (Transform) と基点 (Anchor) を設定ファイルに書くと、juiz が各部品の位置姿勢 (ContainerPose) を計算します。
+
+> juiz の次の版 (0.2 系) で入る機能です。公開までは `build.sh` の `JUIZ_GIT_REF` を juiz の main のコミットにしてあり、libjuiz_sdk は juiz のソースからビルドします。juiz コマンドも同じコミットから入れてください:
+> `cargo install juiz_app --git https://github.com/OpenJUIZ/juiz --rev b90770b1b6451a37bd712b22b33c78da882496d7 --locked`
+
+`transformations.conf` の木は次のとおりです。`map` と `odom` は juiz に組み込みの Anchor で、プラグインは要りません。
+
+```text
+map (PeriodicExecutionAnchor, 10 Hz)    … 10 Hz で木をたどって位置姿勢を計算し直す
+└─ odom (StaticAnchor)                  … 書き込みがあったときだけ計算し直す。map から (1, 2, 0) ずれている
+   └─ base0 (台車 mobile_base_hs)        … move0 がオドメトリを setContainerPose で書く
+      └─ pantilt0 (雲台 pantilt_hs)      … 台車の (0.1, 0, 0.3) に付く。pan0 がパン角を書く
+         └─ camera0 (カメラ camera_hs)   … 雲台の (0.05, 0, 0.02) に付く。Transform だけ
+```
+
+部品は `component/MobileRobot.hs` の 1 つの Component (`mobile_robot_hs`) です。ContainerProcess の中では `containerPose "map"` で読み、`setContainerPose "odom" pose` で書きます。どちらも「今呼ばれている ContainerProcess の Container」が相手です。`setContainerPose` は親 → 自分の Transform を書き換えるので、子の雲台・カメラも一緒に動きます。
+
+```haskell
+move :: MobileBase -> Double -> Double -> Double -> Text -> IO Value
+move (MobileBase ref) vx omega dt reference = do
+  (x, y, theta) <- readIORef ref
+  let x' = x + vx * cos theta * dt
+      y' = y + vx * sin theta * dt
+      theta' = theta + omega * dt
+  writeIORef ref (x', y', theta')
+  poseStampedToValue reference <$> setContainerPose reference (yawPose (x', y', 0) theta')
+```
+
+また `pose_listeners:` で、台車の位置姿勢が書かれたら Process `print0` (`pose_print_hs`) を呼ぶ Pose 通知を登録しています。
+
+```sh
+juiz -f transformations.conf -d
+```
+
+別の端末で台車を動かし、雲台を 90 度回します。
+
+```sh
+juiz container-process call "http://127.0.0.1:8000/container_process/move0::mobile_base_hs_move:base0" '{"vx": 1.0, "dt": 1.0}' -p
+# => CapsulePtr((value:Value({"header":{"frame_id":"odom",...},"pose":{"orientation":{...},"position":{"x":1.0,"y":0.0,"z":0.0}}}), option: []))
+juiz container-process call "http://127.0.0.1:8000/container_process/pan0::pantilt_hs_set_pan:pantilt0" '{"pan": 1.5707963267948966}' -p
+```
+
+1 つ目の呼び出しで、juiz を起動した端末に Pose 通知の出力が出ます。
+
+```text
+pose_print_hs: x=1.00 y=0.00 yaw=0.0deg (from odom)
+```
+
+カメラの位置姿勢を読みます。雲台が回ったので、カメラは台車の左 (y = 0.05) に来ています。`map` から見ると `map` → `odom` のずれ (1, 2, 0) が足されます。
+
+```sh
+juiz container pose camera0 --reference odom
+# => position: x=1.1, y=0.05, z=0.32 (JSON の PoseStamped)
+juiz container pose camera0 --reference map
+# => position: x=2.1, y=2.05, z=0.32
+juiz container-process call "http://127.0.0.1:8000/container_process/camera_pose0::camera_hs_pose:camera0" '{"reference": "map"}' -p
+juiz anchor tree map
+# map  position (0, 0, 0)  orientation (0, 0, 0, 1)
+# └─ odom  position (1, 2, 0)  orientation (0, 0, 0, 1)
+#    └─ base0  position (2, 2, 0)  orientation (0, 0, 0, 1)
+#       └─ pantilt0  position (2.1, 2, 0.3)  orientation (0, 0, 0.7071067811865475, 0.7071067811865476)
+#          └─ camera0  position (2.1, 2.05, 0.32)  orientation (0, 0, 0.7071067811865475, 0.7071067811865476)
+```
+
+`map` は Periodic なので、書き込みの直後に読むと最大 1 周期 (0.1 秒) 古い値が返ります。`odom` は Static なので、`setContainerPose` が戻った時点で新しい値になっています。
+管理画面 (`http://127.0.0.1:8000/ui`) の「変換木」でも木と位置姿勢を見られます。
+
 ### アプリを .juizapp で配る
 
 `packages/talker_listener/` を、1 つのファイル (`.juizapp`、zip) にまとめて配れます (juiz 0.0.28 から)。受け取った人は、GHC も cabal も無しに `juiz run` だけで動かせます。
@@ -378,7 +447,7 @@ Haskell のプラグインは `libjuiz_sdk` のほかに GHC の共有ライブ�
 | --- | --- |
 | `process/` | Process (入力と出力を持つ冪等な関数) のサンプル |
 | `container/` | Container (状態を持つ) と ContainerProcess のサンプル |
-| `component/` | 複数の要素を 1 つのライブラリにまとめた Component のサンプル |
+| `component/` | 複数の要素を 1 つのライブラリにまとめた Component のサンプル (`MobileRobot.hs` は Transformations の部品) |
 | `types/` | 4 つのサンプルリポジトリで共通に使う型 (JIDL) |
 | `python/` | データ型のサンプルで Haskell の Process とつなぐ Python の Process |
 | `juiz-examples-haskell.cabal` | 各サンプルを `foreign-library` として宣言する |
@@ -439,7 +508,7 @@ juiz の版を上げるときは、`juiz` コマンド・`libjuiz_sdk`・juiz �
 
 ## juiz の版について
 
-`build.sh` が取得する juiz の版は `JUIZ_GIT_REF` で決まります。既定値は `v0.1.0` で、上の手順で入れた juiz_app 0.1.0 と組み合わせて使います。タグ (`v<版>`) を指定すると、その版の `libjuiz_sdk` のアーカイブを使います。コミットを指定したときや `JUIZ_SOURCE_DIR`・`JUIZ_SDK_FROM_SOURCE=1` を指定したときは、ソースから `libjuiz_sdk` をビルドします。
+`build.sh` が取得する juiz の版は `JUIZ_GIT_REF` で決まります。既定値は `v0.1.0` で、上の手順で入れた juiz_app 0.1.0 と組み合わせて使います (今は Transformations のサンプルのために、既定値を juiz の main のコミット `b90770b1b6451a37bd712b22b33c78da882496d7` にしています。次の版の公開後にその版のタグに戻します)。タグ (`v<版>`) を指定すると、その版の `libjuiz_sdk` のアーカイブを使います。コミットを指定したときや `JUIZ_SOURCE_DIR`・`JUIZ_SDK_FROM_SOURCE=1` を指定したときは、ソースから `libjuiz_sdk` をビルドします。
 別の版を使うときは、`juiz` コマンドを入れた版と合わせて指定してください。
 
 ```sh

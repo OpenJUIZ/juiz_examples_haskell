@@ -128,3 +128,15 @@ foreign-library example_component_hs
         mod-def-file: def/example_component_hs.def
     hs-source-dirs:   component
     other-modules:    ExampleComponent
+
+-- Transformations: 台車 → 雲台 → カメラ の部品 (transformations.conf)
+foreign-library mobile_robot_hs
+    import:           plugin
+    type:             native-shared
+    if os(windows)
+        options:      standalone
+        mod-def-file: def/mobile_robot_hs.def
+    hs-source-dirs:   component
+    other-modules:    MobileRobot
+    build-depends:    containers
+                    , text
