@@ -10,6 +10,7 @@
 -- * mobile_base_hs_move はオドメトリを積分して、odom から見た自分の位置姿勢を setContainerPose で書く。
 -- * pantilt_hs_set_pan はパン角を書く (台車から見た自分の向きだけを変える)。
 -- * camera_hs_pose は基準から見た自分の位置姿勢を containerPose で読む。カメラは Transform で雲台につながっているだけ。
+--   読むだけなので readonly にしている。
 -- * pose_print_hs は Pose 通知 (conf の pose_listeners:) で呼ばれる Process。
 --
 -- ContainerProcess の関数は Container の状態だけを受け取り、containerPose / setContainerPose は
@@ -92,9 +93,12 @@ cameraManifest = containerManifest "camera_hs"
 createCamera :: IO Camera
 createCamera = pure Camera
 
--- | 基準 reference から見た自分の位置姿勢 (juiz_std.geometry.PoseStamped の辞書)
+-- | 基準 reference から見た自分の位置姿勢 (juiz_std.geometry.PoseStamped の辞書)。
+-- 読むだけなので readonly にする (OpenJUIZ/juiz#377)。juiz は Container を読み出しロックで呼ぶので、
+-- 同じ Container の readonly 同士は並行に走る。中で setContainerPose を呼ぶと juizPoseNotWritableError になる
 cameraPoseManifest :: ProcessManifest
 cameraPoseManifest = containerProcessManifest "camera_hs_pose" "camera_hs"
+  & readonly True
   & addStringArg "reference" "reference container" "map"
 
 cameraPose :: Camera -> Text -> IO Value

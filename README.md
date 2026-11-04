@@ -7,7 +7,7 @@
 
 Rust 版は [juiz_examples_rust](https://github.com/OpenJUIZ/juiz_examples_rust)、Python 版は [juiz_examples_python](https://github.com/OpenJUIZ/juiz_examples_python)、C++ 版は [juiz_examples_cpp](https://github.com/OpenJUIZ/juiz_examples_cpp) にあります。
 
-`juiz` コマンドは crates.io の [juiz_app](https://crates.io/crates/juiz_app) 0.2.1 を使います (Haskell 対応は 0.0.21 から、データ型は 0.0.23 から)。
+`juiz` コマンドは crates.io の [juiz_app](https://crates.io/crates/juiz_app) 0.2.1 を使います (Haskell 対応は 0.0.21 から、データ型は 0.0.23 から)。readonly の ContainerProcess の例だけは juiz の次の版の機能を使うので、公開までは juiz の main のコミットを使います ([読むだけの ContainerProcess](#読むだけの-containerprocess-readonly) を参照)。
 
 ## しくみ
 
@@ -422,6 +422,31 @@ juiz anchor tree map
 `map` は Periodic なので、書き込みの直後に読むと最大 1 周期 (0.1 秒) 古い値が返ります。`odom` は Static なので、`setContainerPose` が戻った時点で新しい値になっています。
 管理画面 (`http://127.0.0.1:8000/ui`) の「変換木」でも木と位置姿勢を見られます。
 
+#### 読むだけの ContainerProcess: readonly
+
+カメラの `camera_hs_pose` は位置姿勢を読むだけなので、manifest に `readonly True` を付けて readonly の ContainerProcess にしています。
+
+```haskell
+cameraPoseManifest :: ProcessManifest
+cameraPoseManifest = containerProcessManifest "camera_hs_pose" "camera_hs"
+  & readonly True
+  & addStringArg "reference" "reference container" "map"
+
+cameraPose :: Camera -> Text -> IO Value
+cameraPose Camera reference = poseStampedToValue reference <$> containerPose reference
+```
+
+juiz は readonly の ContainerProcess を Container の読み出しロックで呼ぶので、同じ Container の readonly 同士は並行に走ります (readonly でないものとは順番に走ります)。readonly の中で `setContainerPose` を呼ぶと `juizPoseNotWritableError` になります。Container の状態 (`IORef` など) の書き換えは止められないので、readonly の中では読むだけにしてください。
+readonly かどうかは ContainerProcess の情報 (HTTP の API) に出ます。
+
+```sh
+curl "http://127.0.0.1:8000/api/container_process/profile_full?identifier=core://core/container_process/camera_pose0::camera_hs_pose:camera0"
+# => {..."readonly":true,...}
+```
+
+> juiz の次の版 (0.2.1 の次) で入る機能です。公開までは `build.sh` の `JUIZ_GIT_REF` を juiz の main のコミットにしてあり、libjuiz_sdk は juiz のソースからビルドします。juiz コマンドも同じコミットから入れてください:
+> `cargo install juiz_app --git https://github.com/OpenJUIZ/juiz --rev 9631340ddc68f6543b26185368f6ec8fe3122834 --locked`
+
 #### System をまたぐ: transformations_map.conf と transformations_robot.conf
 
 上の木を、地図の System とロボットの System の 2 つに分けた版です。地図 (`map`) を持つ System と、台車・雲台・カメラを持つ System を別のプロセスで動かし、ロボットの System から `map` を基準に読めます。
@@ -575,7 +600,7 @@ juiz の版を上げるときは、`juiz` コマンド・`libjuiz_sdk`・juiz �
 
 ## juiz の版について
 
-`build.sh` が取得する juiz の版は `JUIZ_GIT_REF` で決まります。既定値は `v0.2.1` で、上の手順で入れた juiz_app 0.2.1 と組み合わせて使います。タグ (`v<版>`) を指定すると、その版の `libjuiz_sdk` のアーカイブを使います。コミットを指定したときや `JUIZ_SOURCE_DIR`・`JUIZ_SDK_FROM_SOURCE=1` を指定したときは、ソースから `libjuiz_sdk` をビルドします。
+`build.sh` が取得する juiz の版は `JUIZ_GIT_REF` で決まります。既定値は `v0.2.1` で、上の手順で入れた juiz_app 0.2.1 と組み合わせて使います (今は readonly の ContainerProcess のサンプルのために、既定値を juiz の main のコミット `9631340ddc68f6543b26185368f6ec8fe3122834` にしています。次の版の公開後にその版のタグに戻します)。タグ (`v<版>`) を指定すると、その版の `libjuiz_sdk` のアーカイブを使います。コミットを指定したときや `JUIZ_SOURCE_DIR`・`JUIZ_SDK_FROM_SOURCE=1` を指定したときは、ソースから `libjuiz_sdk` をビルドします。
 別の版を使うときは、`juiz` コマンドを入れた版と合わせて指定してください。
 
 ```sh
