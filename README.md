@@ -7,7 +7,7 @@
 
 Rust 版は [juiz_examples_rust](https://github.com/OpenJUIZ/juiz_examples_rust)、Python 版は [juiz_examples_python](https://github.com/OpenJUIZ/juiz_examples_python)、C++ 版は [juiz_examples_cpp](https://github.com/OpenJUIZ/juiz_examples_cpp) にあります。
 
-`juiz` コマンドは crates.io の [juiz_app](https://crates.io/crates/juiz_app) 0.2.1 を使います (Haskell 対応は 0.0.21 から、データ型は 0.0.23 から)。
+`juiz` コマンドは crates.io の [juiz_app](https://crates.io/crates/juiz_app) 0.2.2 を使います (Haskell 対応は 0.0.21 から、データ型は 0.0.23 から)。
 
 ## しくみ
 
@@ -34,7 +34,7 @@ hsjuiz は GHC に付いてくるパッケージ (base, text, containers, templa
 ## 1. juiz コマンドをインストールする
 
 ```sh
-cargo install juiz_app --version 0.2.1 --locked
+cargo install juiz_app --version 0.2.2 --locked
 ```
 
 `juiz` コマンドが `~/.cargo/bin` に入ります。
@@ -266,8 +266,8 @@ record Twist2D { double linear = 0.0; double angular = 0.0; }
 > データ型は juiz 0.0.23 から使えます。juiz コマンドと、Python の Process が使う pyjuiz は 0.0.23 以降を入れてください。
 >
 > ```sh
-> cargo install juiz_app --version 0.2.1 --locked
-> pip install pyjuiz==0.2.1
+> cargo install juiz_app --version 0.2.2 --locked
+> pip install pyjuiz==0.2.2
 > ```
 
 Haskell の Process [process/PoseMove.hs](process/PoseMove.hs) (`pose_move_hs`) は、types/geometry.jidl から作った型 (`Examples.Geometry`) をそのまま引数と戻り値に使います。型は `build.sh` が `juiz-idl -g haskell` で `build/gen-hs` に作ります (`juiz-idl` は juiz のソースからビルドします)。
@@ -422,6 +422,30 @@ juiz anchor tree map
 `map` は Periodic なので、書き込みの直後に読むと最大 1 周期 (0.1 秒) 古い値が返ります。`odom` は Static なので、`setContainerPose` が戻った時点で新しい値になっています。
 管理画面 (`http://127.0.0.1:8000/ui`) の「変換木」でも木と位置姿勢を見られます。
 
+#### 読むだけの ContainerProcess: readonly
+
+カメラの `camera_hs_pose` は位置姿勢を読むだけなので、manifest に `readonly True` を付けて readonly の ContainerProcess にしています。
+
+```haskell
+cameraPoseManifest :: ProcessManifest
+cameraPoseManifest = containerProcessManifest "camera_hs_pose" "camera_hs"
+  & readonly True
+  & addStringArg "reference" "reference container" "map"
+
+cameraPose :: Camera -> Text -> IO Value
+cameraPose Camera reference = poseStampedToValue reference <$> containerPose reference
+```
+
+juiz は readonly の ContainerProcess を Container の読み出しロックで呼ぶので、同じ Container の readonly 同士は並行に走ります (readonly でないものとは順番に走ります)。readonly の中で `setContainerPose` を呼ぶと `juizPoseNotWritableError` になります。Container の状態 (`IORef` など) の書き換えは止められないので、readonly の中では読むだけにしてください。
+readonly かどうかは ContainerProcess の情報 (HTTP の API) に出ます。
+
+```sh
+curl "http://127.0.0.1:8000/api/container_process/profile_full?identifier=core://core/container_process/camera_pose0::camera_hs_pose:camera0"
+# => {..."readonly":true,...}
+```
+
+> juiz 0.2.2 から使える機能です。
+
 #### System をまたぐ: transformations_map.conf と transformations_robot.conf
 
 上の木を、地図の System とロボットの System の 2 つに分けた版です。地図 (`map`) を持つ System と、台車・雲台・カメラを持つ System を別のプロセスで動かし、ロボットの System から `map` を基準に読めます。
@@ -554,20 +578,20 @@ hsjuiz の書き方の詳細は juiz の [bindings/hsjuiz/README.md](https://git
 自分で用意するときは、`juiz` コマンドと同じ版の `libjuiz_sdk` のアーカイブを取得し、juiz のソースを同じ版のタグで取得して、`cabal.project` で hsjuiz をそのソースから使います。
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/OpenJUIZ/juiz/main/scripts/install-juiz-sdk.sh | sh -s -- 0.2.1
-# => ~/.juiz/sdk/0.2.1/lib/libjuiz_sdk.so (macOS は .dylib)
-git clone --depth 1 --branch v0.2.1 https://github.com/OpenJUIZ/juiz.git ~/juiz-0.2.1
+curl -fsSL https://raw.githubusercontent.com/OpenJUIZ/juiz/main/scripts/install-juiz-sdk.sh | sh -s -- 0.2.2
+# => ~/.juiz/sdk/0.2.2/lib/libjuiz_sdk.so (macOS は .dylib)
+git clone --depth 1 --branch v0.2.2 https://github.com/OpenJUIZ/juiz.git ~/juiz-0.2.2
 ```
 
 ```cabal
 -- cabal.project
-packages: . /home/me/juiz-0.2.1/bindings/hsjuiz
+packages: . /home/me/juiz-0.2.2/bindings/hsjuiz
 
 -- hsjuiz は libjuiz_sdk にリンクする。rpath は、Template Haskell を動かすときに GHC が
 -- hsjuiz と一緒に libjuiz_sdk を読み込むために要る
 package hsjuiz
-  extra-lib-dirs: /home/me/.juiz/sdk/0.2.1/lib
-  ghc-options: -optl-Wl,-rpath,/home/me/.juiz/sdk/0.2.1/lib
+  extra-lib-dirs: /home/me/.juiz/sdk/0.2.2/lib
+  ghc-options: -optl-Wl,-rpath,/home/me/.juiz/sdk/0.2.2/lib
 ```
 
 自分のパッケージの `.cabal` では、`foreign-library` に `type: native-shared`、`build-depends: base, hsjuiz`、`ghc-options: -threaded` を書きます。
@@ -575,7 +599,7 @@ juiz の版を上げるときは、`juiz` コマンド・`libjuiz_sdk`・juiz �
 
 ## juiz の版について
 
-`build.sh` が取得する juiz の版は `JUIZ_GIT_REF` で決まります。既定値は `v0.2.1` で、上の手順で入れた juiz_app 0.2.1 と組み合わせて使います。タグ (`v<版>`) を指定すると、その版の `libjuiz_sdk` のアーカイブを使います。コミットを指定したときや `JUIZ_SOURCE_DIR`・`JUIZ_SDK_FROM_SOURCE=1` を指定したときは、ソースから `libjuiz_sdk` をビルドします。
+`build.sh` が取得する juiz の版は `JUIZ_GIT_REF` で決まります。既定値は `v0.2.2` で、上の手順で入れた juiz_app 0.2.2 と組み合わせて使いますタグ (`v<版>`) を指定すると、その版の `libjuiz_sdk` のアーカイブを使います。コミットを指定したときや `JUIZ_SOURCE_DIR`・`JUIZ_SDK_FROM_SOURCE=1` を指定したときは、ソースから `libjuiz_sdk` をビルドします。
 別の版を使うときは、`juiz` コマンドを入れた版と合わせて指定してください。
 
 ```sh
