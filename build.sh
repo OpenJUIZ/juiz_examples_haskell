@@ -5,7 +5,8 @@
 # juiz_sdk の共有ライブラリ (libjuiz_sdk.so / libjuiz_sdk.dylib) とリンクする。
 # どちらも crates.io の juiz_app に同梱されていない。
 # libjuiz_sdk は GitHub Releases のアーカイブ (0.0.26 から) を取得し、hsjuiz は juiz のソースから使う
-# (hsjuiz は Hackage での公開を準備中。公開したら、ソースを取得せずにそちらを使う形に変える予定)。
+# (hsjuiz は 0.2.6 から Hackage にもあるが、juiz-idl などのためにソースを取得するので、hsjuiz もそれを使う。
+#  こうすると cabal update が要らず、JUIZ_GIT_REF に Hackage に無い版や main を指定してもビルドできる)。
 #
 #   JUIZ_SOURCE_DIR を指定した場合: そのディレクトリの juiz のソースを使う
 #   指定しない場合: GitHub から JUIZ_GIT_REF の版を build/juiz に取得する
