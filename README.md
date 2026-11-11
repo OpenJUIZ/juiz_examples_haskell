@@ -3,7 +3,7 @@
 ロボット・IoT 向けミドルウェア [juiz](https://github.com/OpenJUIZ/juiz) の Haskell 版サンプル集です。
 `libjuiz_sdk` は juiz の [GitHub Releases](https://github.com/OpenJUIZ/juiz/releases) のアーカイブ (0.0.26 から) を使い、Haskell 用のライブラリ hsjuiz は juiz のソースから入れます。どちらもビルド時に `build.sh` が自動で取得するので、juiz のソースを手元に用意する必要はありません。
 
-> hsjuiz の Hackage 公開は準備中です。公開したら、juiz のソースを取得せずにそちらを使う手順に変える予定です。
+> hsjuiz は 0.2.6 から [Hackage](https://hackage.haskell.org/package/hsjuiz) にもあります。`build.sh` は型の生成器 `juiz-idl` や `scripts/bundle-plugin-deps.sh` も juiz のソースから使うので、hsjuiz もそのソースのものを使います (`cabal update` は要りません)。自分のプロジェクトで Hackage の hsjuiz を使う手順は「[自分のプロジェクトで使う](#自分のプロジェクトで使う)」にあります。
 
 Rust 版は [juiz_examples_rust](https://github.com/OpenJUIZ/juiz_examples_rust)、Python 版は [juiz_examples_python](https://github.com/OpenJUIZ/juiz_examples_python)、C++ 版は [juiz_examples_cpp](https://github.com/OpenJUIZ/juiz_examples_cpp) にあります。
 
@@ -577,27 +577,29 @@ hsjuiz の書き方の詳細は juiz の [bindings/hsjuiz/README.md](https://git
 
 いちばん手早いのは、このリポジトリの [build.sh](build.sh)・[cabal.project](cabal.project)・[juiz-examples-haskell.cabal](juiz-examples-haskell.cabal) (`common plugin` の部分) をひな形にすることです。
 
-自分で用意するときは、`juiz` コマンドと同じ版の `libjuiz_sdk` のアーカイブを取得し、juiz のソースを同じ版のタグで取得して、`cabal.project` で hsjuiz をそのソースから使います。
+自分で用意するときは、`juiz` コマンドと同じ版の `libjuiz_sdk` のアーカイブを取得し、hsjuiz を [Hackage](https://hackage.haskell.org/package/hsjuiz) から使います (0.2.6 から)。
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/OpenJUIZ/juiz/main/scripts/install-juiz-sdk.sh | sh -s -- 0.2.4
-# => ~/.juiz/sdk/0.2.4/lib/libjuiz_sdk.so (macOS は .dylib)
-git clone --depth 1 --branch v0.2.4 https://github.com/OpenJUIZ/juiz.git ~/juiz-0.2.4
+curl -fsSL https://raw.githubusercontent.com/OpenJUIZ/juiz/main/scripts/install-juiz-sdk.sh | sh -s -- 0.2.6
+# => ~/.juiz/sdk/0.2.6/lib/libjuiz_sdk.so (macOS は .dylib)
+cabal update
 ```
 
 ```cabal
 -- cabal.project
-packages: . /home/me/juiz-0.2.4/bindings/hsjuiz
+packages: .
 
 -- hsjuiz は libjuiz_sdk にリンクする。rpath は、Template Haskell を動かすときに GHC が
 -- hsjuiz と一緒に libjuiz_sdk を読み込むために要る
 package hsjuiz
-  extra-lib-dirs: /home/me/.juiz/sdk/0.2.4/lib
-  ghc-options: -optl-Wl,-rpath,/home/me/.juiz/sdk/0.2.4/lib
+  extra-lib-dirs: /home/me/.juiz/sdk/0.2.6/lib
+  ghc-options: -optl-Wl,-rpath,/home/me/.juiz/sdk/0.2.6/lib
 ```
 
-自分のパッケージの `.cabal` では、`foreign-library` に `type: native-shared`、`build-depends: base, hsjuiz`、`ghc-options: -threaded` を書きます。
-juiz の版を上げるときは、`juiz` コマンド・`libjuiz_sdk`・juiz のソース (タグ) の版をそろえてください。
+自分のパッケージの `.cabal` では、`foreign-library` に `type: native-shared`、`build-depends: base, hsjuiz ==0.2.6.*`、`ghc-options: -threaded` を書きます。
+juiz の版を上げるときは、`juiz` コマンド・`libjuiz_sdk`・hsjuiz の版をそろえてください。
+
+Hackage に無い 0.2.5 以前の版では、juiz のソースを同じ版のタグで取得し (`git clone --depth 1 --branch v0.2.4 https://github.com/OpenJUIZ/juiz.git ~/juiz-0.2.4`)、`cabal.project` の `packages:` にその `bindings/hsjuiz` を足します (`packages: . /home/me/juiz-0.2.4/bindings/hsjuiz`)。
 
 ## juiz の版について
 
