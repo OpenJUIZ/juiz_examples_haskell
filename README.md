@@ -7,7 +7,7 @@
 
 Rust 版は [juiz_examples_rust](https://github.com/OpenJUIZ/juiz_examples_rust)、Python 版は [juiz_examples_python](https://github.com/OpenJUIZ/juiz_examples_python)、C++ 版は [juiz_examples_cpp](https://github.com/OpenJUIZ/juiz_examples_cpp) にあります。
 
-`juiz` コマンドは crates.io の [juiz_app](https://crates.io/crates/juiz_app) 0.2.8 を使います (Haskell 対応は 0.0.21 から、データ型は 0.0.23 から)。
+`juiz` コマンドは crates.io の [juiz_app](https://crates.io/crates/juiz_app) 0.2.9 を使います (Haskell 対応は 0.0.21 から、データ型は 0.0.23 から)。
 
 > **自分の部品を新しく作り始めるときは**、サンプルを写す代わりに `juiz pkg create my_robot -b haskell` で雛形を作れます (juiz 0.2.6 から)。ビルド・起動・呼び出し・`.juizapp` での配布までそのまま通る形で、SDK の版も `juiz` コマンドと同じ版で書かれます。詳しくは公式サイトの [雛形から始める (juiz pkg)](https://openjuiz.github.io/ja/guides/pkg/) を見てください。
 
@@ -36,7 +36,7 @@ hsjuiz は GHC に付いてくるパッケージ (base, text, containers, templa
 ## 1. juiz コマンドをインストールする
 
 ```sh
-cargo install juiz_app --version 0.2.8 --locked
+cargo install juiz_app --version 0.2.9 --locked
 ```
 
 `juiz` コマンドが `~/.cargo/bin` に入ります。
@@ -268,8 +268,8 @@ record Twist2D { double linear = 0.0; double angular = 0.0; }
 > データ型は juiz 0.0.23 から使えます。juiz コマンドと、Python の Process が使う pyjuiz は 0.0.23 以降を入れてください。
 >
 > ```sh
-> cargo install juiz_app --version 0.2.8 --locked
-> pip install pyjuiz==0.2.8
+> cargo install juiz_app --version 0.2.9 --locked
+> pip install pyjuiz==0.2.9
 > ```
 
 Haskell の Process [process/PoseMove.hs](process/PoseMove.hs) (`pose_move_hs`) は、types/geometry.jidl から作った型 (`Examples.Geometry`) をそのまま引数と戻り値に使います。型は `build.sh` が `juiz-idl -g haskell` で `build/gen-hs` に作ります (`juiz-idl` は juiz のソースからビルドします)。
@@ -448,6 +448,49 @@ curl "http://127.0.0.1:8000/api/container_process/profile_full?identifier=core:/
 
 > juiz 0.2.2 から使える機能です。
 
+#### 3D モデル: 部品の形を付ける
+
+Container に 3D モデルのファイルを付けると、管理画面の「3D」で木を立体で見られます (OpenJUIZ/juiz#385)。設定ファイルの Container に `model:` を書くだけで、プラグインのコードは変えません。
+
+> juiz 0.2.9 から使える機能です。
+
+`transformations.conf` (と `transformations_map.conf`・`transformations_robot.conf`) では、形式をひととおり使っています。
+
+| Container | ファイル | 形式 | 書き方の例 |
+|---|---|---|---|
+| `map` (床) | `models/floor.glb` | glTF (.glb) | glTF は Y 上なので、juiz が x 軸まわりに +90° 回して Z 上にそろえる (`up_axis` は書かない) |
+| `base0` (台車) | `models/mobile_base.glb` | glTF (.glb) | 前 (+x) に黄色の三角の印 |
+| `pantilt0` (雲台) | `models/pantilt.sdf` | SDF (手書き) | 円柱と箱を `<pose>` で並べる。`<material>` の無い台座は `color` で塗る |
+| `camera0` (カメラ) | `models/camera.stl` | STL | mm で作ったものなので `scale: 0.001`。原点が背面なので `origin` で 15 mm 後ろにずらす |
+
+```yaml
+  - type_name: camera_hs
+    name: camera0
+    model:
+      path: models/camera.stl          # 設定ファイルからの相対パス
+      scale: 0.001                     # mm → m
+      origin:                          # Container の座標から見たモデルの位置
+        translation: {x: -0.015, y: 0.0, z: 0.0}
+      color: "#e0e0e0"                 # 色を持たない形式の表示色
+```
+
+.glb と .stl は `scripts/make_models.py` が箱と円柱から作ったものです (Python の標準ライブラリだけで動きます。`python3 scripts/make_models.py` で作り直せます)。座標は juiz と同じメートル・x 前・y 左・z 上です。
+
+起動して、モデルの情報と中身を取り出せます。
+
+```sh
+juiz -f transformations.conf -d
+juiz container list --long
+# base0 の行の下に  model: glb 24.2 KiB (mobile_base.glb)
+juiz container model camera0 --info
+# => {"file_name": "camera.stl", "format": "stl", "scale": 0.001, ...}
+juiz container model base0 -o .
+# => wrote: ./mobile_base.glb (24760 bytes, glb)
+juiz model check models/pantilt.sdf      # System を起動せずにファイルを確かめる
+```
+
+管理画面 (`http://127.0.0.1:8000/ui`) の中央の「3D」を押し、右上で Anchor (`map` や `odom`) を選ぶと、台車・雲台・カメラが位置姿勢のとおりに置かれます。台車を動かしたり雲台を回したりすると、表示も追いかけます。System をまたぐ版では、ロボットの System の管理画面で `map(写し)` を選ぶと、地図の System にある床のモデルも一緒に出ます。
+
 #### System をまたぐ: transformations_map.conf と transformations_robot.conf
 
 上の木を、地図の System とロボットの System の 2 つに分けた版です。地図 (`map`) を持つ System と、台車・雲台・カメラを持つ System を別のプロセスで動かし、ロボットの System から `map` を基準に読めます。
@@ -545,9 +588,11 @@ Haskell のプラグインは `libjuiz_sdk` のほかに GHC の共有ライブ�
 | `python/` | データ型のサンプルで Haskell の Process とつなぐ Python の Process |
 | `juiz-examples-haskell.cabal` | 各サンプルを `foreign-library` として宣言する |
 | `build.sh` | juiz のソースと libjuiz_sdk・juiz-idl を用意し、型を作ってサンプルをビルドし、`build/plugins` に置く |
+| `models/` | Transformations のサンプルの部品の 3D モデル (.glb・.stl・手書きの .sdf) |
 | `*.conf` | 各サンプルを動かすための juiz の設定ファイル |
 | `packages/` | `.juizapp` にするアプリのマニフェストと設定ファイル |
 | `scripts/make_packages.py` | ビルドしたプラグインと依存するライブラリを `packages/` のアプリに集め、`dist/` に `.juizapp` を作るスクリプト |
+| `scripts/make_models.py` | `models/` の .glb と .stl を箱と円柱から作るスクリプト |
 | `tests/test_examples.py` | 上のサンプルを起動して呼び出し、結果を確かめるテスト (ビルドのあと `python3 tests/test_examples.py`)。CI でも実行する |
 
 ## 自分で書くときは
@@ -580,8 +625,8 @@ hsjuiz の書き方の詳細は juiz の [bindings/hsjuiz/README.md](https://git
 自分で用意するときは、`juiz` コマンドと同じ版の `libjuiz_sdk` のアーカイブを取得し、hsjuiz を [Hackage](https://hackage.haskell.org/package/hsjuiz) から使います (0.2.6 から)。
 
 ```sh
-curl -fsSL https://raw.githubusercontent.com/OpenJUIZ/juiz/main/scripts/install-juiz-sdk.sh | sh -s -- 0.2.8
-# => ~/.juiz/sdk/0.2.8/lib/libjuiz_sdk.so (macOS は .dylib)
+curl -fsSL https://raw.githubusercontent.com/OpenJUIZ/juiz/main/scripts/install-juiz-sdk.sh | sh -s -- 0.2.9
+# => ~/.juiz/sdk/0.2.9/lib/libjuiz_sdk.so (macOS は .dylib)
 cabal update
 ```
 
@@ -592,18 +637,18 @@ packages: .
 -- hsjuiz は libjuiz_sdk にリンクする。rpath は、Template Haskell を動かすときに GHC が
 -- hsjuiz と一緒に libjuiz_sdk を読み込むために要る
 package hsjuiz
-  extra-lib-dirs: /home/me/.juiz/sdk/0.2.8/lib
-  ghc-options: -optl-Wl,-rpath,/home/me/.juiz/sdk/0.2.8/lib
+  extra-lib-dirs: /home/me/.juiz/sdk/0.2.9/lib
+  ghc-options: -optl-Wl,-rpath,/home/me/.juiz/sdk/0.2.9/lib
 ```
 
-自分のパッケージの `.cabal` では、`foreign-library` に `type: native-shared`、`build-depends: base, hsjuiz ==0.2.8.*`、`ghc-options: -threaded` を書きます。
+自分のパッケージの `.cabal` では、`foreign-library` に `type: native-shared`、`build-depends: base, hsjuiz ==0.2.9.*`、`ghc-options: -threaded` を書きます。
 juiz の版を上げるときは、`juiz` コマンド・`libjuiz_sdk`・hsjuiz の版をそろえてください。
 
 Hackage に無い 0.2.5 以前の版では、juiz のソースを同じ版のタグで取得し (`git clone --depth 1 --branch v0.2.4 https://github.com/OpenJUIZ/juiz.git ~/juiz-0.2.4`)、`cabal.project` の `packages:` にその `bindings/hsjuiz` を足します (`packages: . /home/me/juiz-0.2.4/bindings/hsjuiz`)。
 
 ## juiz の版について
 
-`build.sh` が取得する juiz の版は `JUIZ_GIT_REF` で決まります。既定値は `v0.2.8` で、上の手順で入れた juiz_app 0.2.8 と組み合わせて使います。タグ (`v<版>`) を指定すると、その版の `libjuiz_sdk` のアーカイブを使います。コミットを指定したときや `JUIZ_SOURCE_DIR`・`JUIZ_SDK_FROM_SOURCE=1` を指定したときは、ソースから `libjuiz_sdk` をビルドします。
+`build.sh` が取得する juiz の版は `JUIZ_GIT_REF` で決まります。既定値は `v0.2.9` で、上の手順で入れた juiz_app 0.2.9 と組み合わせて使います。タグ (`v<版>`) を指定すると、その版の `libjuiz_sdk` のアーカイブを使います。コミットを指定したときや `JUIZ_SOURCE_DIR`・`JUIZ_SDK_FROM_SOURCE=1` を指定したときは、ソースから `libjuiz_sdk` をビルドします。
 別の版を使うときは、`juiz` コマンドを入れた版と合わせて指定してください。
 
 ```sh
