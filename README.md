@@ -574,6 +574,8 @@ juiz run dist/talker_listener-0.1.0-x86_64-unknown-linux-gnu.juizapp
 # listener_hs: Hello, Juiz!
 ```
 
+> juiz 0.3.0 から、`juiz associate` を 1 回実行しておくと `.juizapp` をダブルクリックで起動できます。ポートが使われていたときや、依存する基礎につながらないときは、起動した端末で選び直せます。詳しくは公式サイトの [アプリの配布 (.juizapp)](https://openjuiz.github.io/ja/guides/app-package/#ダブルクリックで起動する) を見てください。
+
 Haskell のプラグインは `libjuiz_sdk` のほかに GHC の共有ライブラリ (`libHSbase-*`、`libHSrts*` など) と libffi・libgmp にもリンクします。`scripts/make_packages.py` は juiz の `scripts/bundle-plugin-deps.sh` (`build.sh` が `build/juiz` に取得した juiz のソースにある) で、プラグインとそれらを `plugins/<この機械のターゲット>/` に集め、どれも隣を探すように書き換えてから `juiz pack --target <ターゲット>` を呼びます。Linux では `patchelf` が要ります (`sudo apt install patchelf` か `pip install patchelf`)。Windows の DLL は RTS と hsjuiz を中に取り込んでいるので、DLL と `juiz_sdk.dll` を写すだけです。
 タグ (`v*`) を付けると、CI が Linux (x86_64) と macOS (arm64) で作った `.juizapp` をこのリポジトリの Releases に載せます。
 
