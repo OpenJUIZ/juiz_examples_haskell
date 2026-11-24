@@ -10,6 +10,8 @@ Rust 版は [juiz_examples_rust](https://github.com/OpenJUIZ/juiz_examples_rust)
 `juiz` コマンドは crates.io の [juiz_app](https://crates.io/crates/juiz_app) 0.3.4 を使います (Haskell 対応は 0.0.21 から、データ型は 0.0.23 から)。
 
 > **自分の部品を新しく作り始めるときは**、サンプルを写す代わりに `juiz pkg create my_robot -b haskell` で雛形を作れます (juiz 0.2.6 から)。ビルド・起動・呼び出し・`.juizapp` での配布までそのまま通る形で、SDK の版も `juiz` コマンドと同じ版で書かれます。詳しくは公式サイトの [雛形から始める (juiz pkg)](https://openjuiz.github.io/ja/guides/pkg/) を見てください。
+>
+> juiz 0.3.5 からは、雛形と一緒に型の設計文書 `juizdesign.yaml` もできます。先に設計文書を書いて `juiz pkg design check` で確かめてから、`juiz pkg create -d juizdesign.yaml -b haskell` で雛形を作ることもできます。詳しくは [設計文書 (juizdesign.yaml)](https://openjuiz.github.io/ja/guides/pkg/#設計文書juizdesignyaml) を見てください。
 
 ## しくみ
 
